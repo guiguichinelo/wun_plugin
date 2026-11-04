@@ -1,4 +1,4 @@
-# WUN — What U Need?
+# WUN â€” What U Need?
 
 Catalog requests inside Jellyfin. **0.1.0-beta.1: Jellyfin 12.4.0, Linux x64.**
 
@@ -10,6 +10,6 @@ Add [Betterfin for Jellyfin 12](https://raw.githubusercontent.com/guiguichinelo/
 
 **Acquisition is manual.** Monitoring preferences are stored, but automated monitoring/review reminders and native season-page integration are pending. Other server versions, Windows, ARM, native clients and sustained load are not validated. Back up configuration and plugin data before installing.
 
-See [architecture and limits](docs/IMPLEMENTATION.md), [API](docs/API.md) and [themes/locales](docs/themes-and-locales.md). Build with .NET 10, then run the core executable tests, API tests and Python/Playwright browser checks in tests/. Set WUN_BROWSER_CHANNEL=msedge to use Edge locally; CI uses Chromium. scripts/package.ps1 generates the Linux x64 ZIP and checksum receipt under artifacts/; keep all packaged SQLite dependencies together.
+See [architecture and limits](docs/IMPLEMENTATION.md), [API](docs/API.md) and [themes/locales](docs/themes-and-locales.md). Build with .NET 10, then run the core executable tests, API tests and Python/Playwright browser checks in tests/. Set WUN_BROWSER_CHANNEL=msedge to use Edge locally; CI uses the Chrome installation in its Ubuntu 24.04 runner. scripts/package.ps1 generates the Linux x64 ZIP and checksum receipt under artifacts/; keep all packaged SQLite dependencies together.
 
 GPL-3.0; see LICENSE and THIRD-PARTY-NOTICES.md.
