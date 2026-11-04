@@ -34,6 +34,21 @@
         else{if(document.body.classList.contains('wun-route-pending'))document.body.classList.remove('wun-route-pending');document.getElementById('wun-transition-backdrop')?.remove();}
     });
     let queued = false;
+    let tooltipTimer,tooltip,tooltipButton;
+    const tooltipStyle=document.createElement('style');
+    tooltipStyle.textContent='#wun-header-tooltip{position:fixed;z-index:1500;pointer-events:none;max-width:300px;box-sizing:border-box;border-radius:4px;padding:4px 8px;font:500 .6875rem/1.35 "Noto Sans",sans-serif;background:var(--jf-palette-Tooltip-bg,rgba(97,97,97,.92));color:var(--jf-palette-common-white,#fff);box-shadow:none}';
+    document.head.append(tooltipStyle);
+    function hideTooltip(){clearTimeout(tooltipTimer);tooltip?.remove();tooltip=null;tooltipButton?.removeAttribute('aria-describedby');tooltipButton=null;}
+    function showTooltip(button,delay){
+        hideTooltip();tooltipTimer=setTimeout(()=>{
+            if(!button.isConnected)return;
+            tooltipButton=button;tooltip=document.createElement('div');tooltip.id='wun-header-tooltip';tooltip.setAttribute('role','tooltip');tooltip.textContent=button.getAttribute('aria-label');document.body.append(tooltip);
+            const rect=button.getBoundingClientRect();tooltip.style.left=Math.max(8,Math.min(innerWidth-tooltip.offsetWidth-8,rect.left+(rect.width-tooltip.offsetWidth)/2))+'px';
+            tooltip.style.top=Math.min(innerHeight-tooltip.offsetHeight-8,rect.bottom+14)+'px';button.setAttribute('aria-describedby',tooltip.id);
+        },delay);
+    }
+    document.addEventListener('keydown',event=>{if(event.key==='Escape')hideTooltip();});
+    window.addEventListener('hashchange',hideTooltip);window.addEventListener('scroll',hideTooltip,true);window.addEventListener('resize',hideTooltip);
     function update() {
         queued = false;
         const route=new URL(location.hash.slice(1)||'/',location.origin==='null'?'http://localhost':location.origin);
@@ -72,13 +87,20 @@
                 icon.append(path);
                 button.append(icon);
                 button.addEventListener('click', () => {
+                    hideTooltip();
                     if (state.ready) {prepareSurface();location.hash = '/userpluginsettings.html?pageUrl=' + encodeURIComponent(page);}
                 });
                 header.insertBefore(button, anchor || header.firstChild);
             }
+            if(!button.dataset.wunTooltipBound){
+                button.dataset.wunTooltipBound='true';
+                button.addEventListener('mouseenter',()=>showTooltip(button,700));button.addEventListener('mouseleave',hideTooltip);
+                button.addEventListener('focus',()=>showTooltip(button,0));button.addEventListener('blur',hideTooltip);button.addEventListener('click',hideTooltip);
+            }
             button.disabled = !state.ready;
-            button.title = label + (state.ready ? '' : portuguese ? ' — em desenvolvimento' : ' — in development');
-            button.setAttribute('aria-label', button.title);
+            button.removeAttribute('title');
+            button.setAttribute('aria-label', label + (state.ready ? '' : portuguese ? ' — em desenvolvimento' : ' — in development'));
+            if(tooltipButton===button&&tooltip&&tooltip.textContent!==button.getAttribute('aria-label'))tooltip.textContent=button.getAttribute('aria-label');
             button.setAttribute('aria-disabled', String(!state.ready));
         });
     }
