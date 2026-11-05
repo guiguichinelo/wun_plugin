@@ -24,7 +24,7 @@ with sync_playwright() as p:
   }""",mode)
   page.add_script_tag(path=str(root/'src/Wun.Web/app.js'));page.evaluate('WunUI.mount(document.querySelector("#wun-app"))')
   page.evaluate("()=>{const original=ApiClient.ajax;ApiClient.ajax=async request=>{const data=await original(request);if(request.url.includes('/details?')){data.ImageUrl='https://image.tmdb.org/t/p/w342/fixture.jpg';data.Seasons[0].ImageUrl=data.ImageUrl;data.Seasons.push({Number:2,Expected:3,ImageUrl:data.ImageUrl});data.SelectedSeason=Number(new URL(request.url,'http://fixture').searchParams.get('season')||1);data.Episodes[0].ImageUrl='https://image.tmdb.org/t/p/w300/fixture.jpg';data.Episodes[1].ImageUrl='https://untrusted.example/fixture.jpg';}return data;};}")
-  page.locator('#wun-app nav button').nth(2).click();page.locator('input[type=search]').fill('fixture');page.locator('input[type=search]').press('Enter')
+  page.locator('#wun-app nav button').nth(1).click();page.locator('input[type=search]').fill('fixture');page.locator('input[type=search]').press('Enter')
   page.get_by_role('button',name='Details',exact=True).click();modal=page.locator('.wun-details');modal.get_by_text('A synopsis.',exact=True).wait_for()
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
   assert modal.locator('.wun-title-cover img').count()==1

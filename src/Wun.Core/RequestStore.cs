@@ -6,7 +6,7 @@ namespace Wun.Core;
 /// Local plugin persistence. The Jellyfin adapter must enforce user visibility and administrator
 /// policy before calling this class; this store is not an authorization boundary.
 /// </summary>
-public sealed class RequestStore
+public sealed partial class RequestStore
 {
     private readonly string connectionString;
 
@@ -19,11 +19,11 @@ public sealed class RequestStore
         using var connection = Open();
         using var version = Command(connection, "PRAGMA user_version");
         var schema = Convert.ToInt32(version.ExecuteScalar());
-        if (schema > 1) throw new InvalidOperationException("Unsupported WUN database schema.");
+        if (schema > 3) throw new InvalidOperationException("Unsupported WUN database schema.");
         using var transaction = connection.BeginTransaction();
         using var migration = Command(connection, """
             CREATE TABLE IF NOT EXISTS requests (
-                id INTEGER PRIMARY KEY, identity TEXT UNIQUE NOT NULL,
+                id INTEGER PRIMARY KEY AUTOINCREMENT, identity TEXT UNIQUE NOT NULL,
                 kind INTEGER NOT NULL, tmdb TEXT NOT NULL, title TEXT NOT NULL,
                 season INTEGER, episode INTEGER, decision INTEGER NOT NULL DEFAULT 0,
                 availability INTEGER NOT NULL DEFAULT 0, monitor INTEGER NOT NULL,
@@ -32,17 +32,19 @@ public sealed class RequestStore
                 request INTEGER NOT NULL REFERENCES requests(id), user TEXT NOT NULL,
                 PRIMARY KEY(request,user));
             CREATE TABLE IF NOT EXISTS history (
-                id INTEGER PRIMARY KEY, request INTEGER NOT NULL REFERENCES requests(id),
+                id INTEGER PRIMARY KEY AUTOINCREMENT, request INTEGER NOT NULL REFERENCES requests(id),
                 actor TEXT NOT NULL, decision INTEGER NOT NULL, message TEXT NOT NULL,
                 internal_note TEXT NOT NULL, review_at TEXT, created TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS notifications (
-                id INTEGER PRIMARY KEY, user TEXT NOT NULL,
+                id INTEGER PRIMARY KEY AUTOINCREMENT, user TEXT NOT NULL,
                 request INTEGER NOT NULL REFERENCES requests(id), event TEXT NOT NULL,
                 seen INTEGER NOT NULL DEFAULT 0);
             CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user,id);
             PRAGMA user_version=1;
             """);
         migration.ExecuteNonQuery();
+        UpgradeWorkflow(connection, schema);
+        UpgradeMaintenance(connection);
         transaction.Commit();
     }
 
@@ -97,35 +99,40 @@ public sealed class RequestStore
         using var connection = Open();
         using var transaction = connection.BeginTransaction();
         using var insert = Command(connection, """
-            INSERT OR IGNORE INTO requests(identity,kind,tmdb,title,season,episode,monitor)
-            VALUES($0,$1,$2,$3,$4,$5,$6)
+            INSERT OR IGNORE INTO requests(identity,kind,tmdb,title,season,episode,monitor,requested_by,created)
+            VALUES($0,$1,$2,$3,$4,$5,$6,$7,$8)
             """, selection.Identity, (int)selection.Kind, selection.TmdbId, selection.Title,
-            selection.Season, selection.Episode, selection.Kind == MediaKind.Series && selection.Season is null);
+            selection.Season, selection.Episode, selection.Kind == MediaKind.Series && selection.Season is null,
+            actor.ToString(), DateTimeOffset.UtcNow.ToString("O"));
         var created = insert.ExecuteNonQuery() == 1;
         using var lookup = Command(connection, "SELECT id FROM requests WHERE identity=$0", selection.Identity);
         var id = (long)lookup.ExecuteScalar()!;
-        Execute(connection, "INSERT OR IGNORE INTO followers VALUES($0,$1)", id, actor.ToString());
+        Execute(connection, "INSERT OR IGNORE INTO followers SELECT $0,$1 WHERE NOT EXISTS(SELECT 1 FROM follow_preferences WHERE request=$0 AND user=$1 AND enabled=0)", id, actor.ToString());
+        Execute(connection, "INSERT OR IGNORE INTO supporters(request,user,created) VALUES($0,$1,$2)", id, actor.ToString(), DateTimeOffset.UtcNow.ToString("O"));
         if (created)
             foreach (var administrator in administrators.Where(x => x != Guid.Empty).Distinct())
-                Execute(connection, "INSERT INTO notifications(user,request,event) VALUES($0,$1,'request')",
-                    administrator.ToString(), id);
+                Execute(connection, "INSERT INTO notifications(user,request,event,actor,created) VALUES($0,$1,'request',$2,$3)",
+                    administrator.ToString(), id, actor.ToString(), DateTimeOffset.UtcNow.ToString("O"));
         transaction.Commit();
         return Get(id);
     }
 
-    public Page<RequestCard> List(int start = 0, int limit = 30, Guid? follower = null, Decision? decision = null)
+    public Page<RequestCard> List(int start = 0, int limit = 30, Guid? follower = null, Decision? decision = null, Guid? participant = null, string sort = "newest")
     {
         if (start < 0 || limit is < 1 or > 100 || (decision.HasValue && !Enum.IsDefined(decision.Value)))
             throw new ArgumentException("Invalid pagination or filter.");
         if (follower.HasValue) ValidateUser(follower.Value);
+        if (participant.HasValue) ValidateUser(participant.Value);
+        if (sort is not ("newest" or "oldest" or "popular")) throw new ArgumentException("Invalid ordering.");
         using var connection = Open();
         using var transaction = connection.BeginTransaction(deferred: true);
-        const string filter = " WHERE ($0 IS NULL OR decision=$0) AND ($1 IS NULL OR EXISTS(SELECT 1 FROM followers f WHERE f.request=requests.id AND f.user=$1))";
+        const string filter = " WHERE ($0 IS NULL OR decision=$0) AND ($1 IS NULL OR EXISTS(SELECT 1 FROM followers f WHERE f.request=requests.id AND f.user=$1)) AND ($2 IS NULL OR requested_by=$2 OR EXISTS(SELECT 1 FROM supporters s WHERE s.request=requests.id AND s.user=$2))";
         using var count = Command(connection, "SELECT COUNT(*) FROM requests" + filter,
-            decision.HasValue ? (int)decision.Value : null, follower?.ToString());
+            decision.HasValue ? (int)decision.Value : null, follower?.ToString(), participant?.ToString());
         var total = (long)count.ExecuteScalar()!;
-        using var command = Command(connection, $"SELECT {Columns} FROM requests" + filter + " ORDER BY id DESC LIMIT $2 OFFSET $3",
-            decision.HasValue ? (int)decision.Value : null, follower?.ToString(), limit, start);
+        var order = sort == "popular" ? "(SELECT COUNT(*) FROM supporters s WHERE s.request=requests.id) DESC,id ASC" : sort == "oldest" ? "id ASC" : "id DESC";
+        using var command = Command(connection, $"SELECT {Columns} FROM requests" + filter + " ORDER BY " + order + " LIMIT $3 OFFSET $4",
+            decision.HasValue ? (int)decision.Value : null, follower?.ToString(), participant?.ToString(), limit, start);
         using var row = command.ExecuteReader();
         var items = new List<RequestCard>();
         while (row.Read()) items.Add(ReadCard(row));
@@ -137,6 +144,7 @@ public sealed class RequestStore
         ValidateUser(user);
         Get(id);
         using var connection = Open();
+        Execute(connection,"INSERT OR REPLACE INTO follow_preferences VALUES($0,$1,$2)",id,user.ToString(),follow);
         Execute(connection, follow ? "INSERT OR IGNORE INTO followers VALUES($0,$1)"
             : "DELETE FROM followers WHERE request=$0 AND user=$1", id, user.ToString());
     }
@@ -161,9 +169,9 @@ public sealed class RequestStore
             """, id, actor.ToString(), (int)decision, message, internalNote,
             reviewAt?.ToUniversalTime().ToString("O"), DateTimeOffset.UtcNow.ToString("O"));
         Execute(connection, """
-            INSERT INTO notifications(user,request,event)
-            SELECT user,request,$0 FROM followers WHERE request=$1
-            """, decision.ToString(), id);
+            INSERT INTO notifications(user,request,event,actor,created,message)
+            SELECT user,request,$0,$2,$3,$4 FROM followers WHERE request=$1
+            """, decision.ToString(), id, actor.ToString(), DateTimeOffset.UtcNow.ToString("O"), message);
         transaction.Commit();
     }
 
@@ -177,9 +185,9 @@ public sealed class RequestStore
         using var row = command.ExecuteReader();
         var history = new List<AdminHistoryEntry>();
         while (row.Read()) history.Add(new(new((Decision)row.GetInt32(1), row.GetString(2),
-            DateTimeOffset.Parse(row.GetString(5))), Guid.Parse(row.GetString(0)), row.GetString(3),
+            DateTimeOffset.Parse(row.GetString(5))), row.IsDBNull(0)?null:Guid.Parse(row.GetString(0)), row.GetString(3),
             row.IsDBNull(4) ? null : DateTimeOffset.Parse(row.GetString(4))));
-        return history.ToArray();
+        return history.Concat(SystemHistory(id).Select(x=>new AdminHistoryEntry(x,null,"",null))).OrderBy(x=>x.Public.Created).ToArray();
     }
 
     public Notification[] Notifications(Guid user)
@@ -198,6 +206,6 @@ public sealed class RequestStore
     {
         ValidateUser(user);
         using var connection = Open();
-        Execute(connection, "UPDATE notifications SET seen=1 WHERE user=$0", user.ToString());
+        Execute(connection, "UPDATE notifications SET seen=1,read_at=COALESCE(read_at,$1) WHERE user=$0", user.ToString(), DateTimeOffset.UtcNow.ToString("O"));
     }
 }

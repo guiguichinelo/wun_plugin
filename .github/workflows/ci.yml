@@ -24,6 +24,8 @@ jobs:
       - run: python -m pip install playwright
       - run: google-chrome --version
       - run: python tests/page_smoke.py
+      - run: python tests/workflow_smoke.py
+      - run: python tests/config_smoke.py
       - run: python tests/header_smoke.py
       - run: python tests/details_smoke.py
       - run: python tests/page_loader_smoke.py

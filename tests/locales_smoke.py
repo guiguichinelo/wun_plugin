@@ -21,10 +21,10 @@ with sync_playwright() as p:
         }""")
         page.add_script_tag(path=str(root/'src/Wun.Web/app.js'))
         page.evaluate('WunUI.mount(document.querySelector("#wun-app"))')
-        page.locator('#wun-app nav button').nth(2).click()
+        page.locator('#wun-app nav button').nth(1).click()
         expected='Solicitações' if locale.startswith('pt') else 'Requests'
         assert page.locator('#wun-app h1').inner_text()==expected,locale
-        assert page.locator('#wun-app nav button').count()==4
+        assert page.locator('#wun-app nav button').count()==3
         page.locator('.wun-filters-toggle').click()
         assert page.locator('#wun-advanced-filters').is_visible()
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),locale

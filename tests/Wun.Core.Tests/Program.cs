@@ -58,6 +58,22 @@ try
     Check(store.List(start: 1, limit: 1).Items.Length == 1 && store.List(start: 1, limit: 1).Total == 2,
         "Pagination returns total separately from page length");
     Check(new RequestStore(database).AdminHistory(request.Id).Length == 1, "Restart preserves history and schema");
+    var ownership = store.Administrative(request.Id);
+    Check(ownership.Requester == user && ownership.Created.HasValue, "New requests retain their original author and date");
+    Check(store.Participation(request.Id, other).SupportCount == 2, "Duplicate requests contribute one support per person");
+    store.Support(request.Id, other, true);
+    store.Support(request.Id, other, true);
+    Check(store.Participation(request.Id, other).SupportCount == 2, "Repeated support cannot inflate priority");
+    Check(!store.Participation(request.Id, other).Following && store.Participation(request.Id, other).Supporting,
+        "Support and notification following are independent");
+    Check(store.List(participant: other).Total == 1, "A user's requests include supported requests after unfollowing");
+    store.Support(request.Id, other, false);
+    Check(new RequestStore(database).Participation(request.Id, other).SupportCount == 1,
+        "Restart does not recreate withdrawn supports from followers");
+    Check(store.List(participant: other).Total == 0 && store.List().Total == 2, "Removing interest never deletes shared requests");
+    var firstNotice = store.WorkflowNotifications(admin).First();
+    Check(firstNotice.Created.HasValue && firstNotice.Actor == user, "New notices retain event time and actor");
+    Check(!store.MarkNotificationRead(other, firstNotice.Id), "An individual read cannot mark another user's notification");
     Reject<ArgumentException>(() => store.List(limit: 10000), "Unbounded pages are rejected");
     Console.WriteLine($"{passed} checks passed.");
 }

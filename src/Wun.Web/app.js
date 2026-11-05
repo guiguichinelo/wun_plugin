@@ -5,10 +5,15 @@
         en: { availableHere:'In your library', episodesHere:'episodes in your library', both:'All', anime:'Anime', movieSingle:'Movie', seriesSingle:'Series', filters:'Filters', clearFilters:'Clear filters', searchHint:'Search a title or paste an IMDb identification.', advanced:'Advanced search', yearFrom:'Year from', yearTo:'Year to', genres:'Genres', minRating:'Minimum rating', obtained:'In your catalog', any:'Any', catalogYes:'Already obtained', catalogNo:'Not in your catalog', openCatalog:'Open in Jellyfin', seriesPresent:'In catalog — episodes available', requestEpisodes:'Request episodes', refine:'Filters apply to the provider results for this search. Up to 12 matches.', openImdb:'Open on IMDb', title:'Requests', all:'Requests', mine:'Following', search:'Search', admin:'Manage', notices:'Notifications', query:'Title or identification', kind:'Type', movie:'Movies', series:'Series', pending:'Awaiting approval', approved:'Approved', deferred:'Follow-up', rejected:'Declined', unknown:'Availability not checked', absent:'Absent from catalog', partial:'Partially available', available:'Available', request:'Request', follow:'Follow', unfollow:'Stop following', history:'History', next:'Next', previous:'Previous', empty:'No results.', loading:'Loading…', error:'Could not complete this operation. Please try again.', conflict:'Another administrator changed this request. Reload before saving.', save:'Save', cancel:'Cancel', season:'Season (optional)', episode:'Episode (optional)', message:'Reply visible to followers', note:'Internal note', review:'Review date (optional)', decision:'Decision', monitor:'Continue monitoring', yes:'Yes', no:'No', sent:'Request saved.', saved:'Saved.', read:'Mark all as read', details:'Details', every:'All states', page:'Page', continuous:'Continuous series monitoring', requested:'New request', development:'Public beta: catalog matches are checked when browsing. The release calendar is not available yet.' },
         pt: { availableHere:'No catálogo', episodesHere:'episódios no catálogo', both:'Todos', anime:'Anime', movieSingle:'Filme', seriesSingle:'Série', filters:'Filtros', clearFilters:'Limpar filtros', searchHint:'Pesquise um título ou cole uma identificação do IMDb.', advanced:'Pesquisa avançada', yearFrom:'Ano inicial', yearTo:'Ano final', genres:'Gêneros', minRating:'Nota mínima', obtained:'No seu catálogo', any:'Todos', catalogYes:'Já obtido', catalogNo:'Não está no seu catálogo', openCatalog:'Abrir no catálogo', seriesPresent:'No catálogo — episódios disponíveis', requestEpisodes:'Solicitar episódios', refine:'Os filtros refinam os resultados do provedor para esta busca. Até 12 correspondências.', openImdb:'Abrir no IMDb', title:'Solicitações', all:'Solicitações', mine:'Acompanhando', search:'Pesquisar', admin:'Gerenciar', notices:'Notificações', query:'Título ou identificação', kind:'Tipo', movie:'Filmes', series:'Séries', pending:'Aguardando aprovação', approved:'Aprovado', deferred:'Em acompanhamento', rejected:'Recusado', unknown:'Disponibilidade não verificada', absent:'Ausente do catálogo', partial:'Parcialmente disponível', available:'Disponível', request:'Solicitar', follow:'Acompanhar', unfollow:'Deixar de acompanhar', history:'Histórico', next:'Próxima', previous:'Anterior', empty:'Nenhum resultado.', loading:'Carregando…', error:'Não foi possível concluir esta operação. Tente novamente.', conflict:'Outro administrador alterou esta solicitação. Atualize antes de salvar.', save:'Salvar', cancel:'Cancelar', season:'Temporada (opcional)', episode:'Episódio (opcional)', message:'Resposta visível aos interessados', note:'Nota interna', review:'Data de revisão (opcional)', decision:'Decisão', monitor:'Continuar acompanhando', yes:'Sim', no:'Não', sent:'Solicitação salva.', saved:'Salvo.', read:'Marcar todas como lidas', details:'Detalhes', every:'Todas as situações', page:'Página', continuous:'Acompanhamento contínuo da série', requested:'Nova solicitação', development:'Beta: a presença no catálogo é verificada ao consultar. O calendário de lançamentos ainda não está disponível.' }
     };
-    let root, owner, active=false, administrator=false, tab='all', start=0, filter='', ticket=0;
+    Object.assign(words.en,{mine:'My requests',admin:'All requests',support:'Want this too',supported:'Supported',supporters:'Interested users',interests:'interested',own:'You requested this',requester:'Requested by',unknownRequester:'Original requester not recorded',legacy:'Legacy record · date unavailable',approve:'Approve',reject:'Decline',defer:'Follow up later',respond:'Respond',sort:'Order',popular:'Most wanted',newest:'Newest first',oldest:'Oldest first',openRequest:'View request',markRead:'Mark as read',unread:'Unread',readNotice:'Read',supportedNotice:'Your support was saved. This request already existed.',createdNotice:'Your request was created.',wholeSeries:'Whole series',seasonLabel:'Season',episodeLabel:'Episode',noImage:'No cover',unknownUser:'Account unavailable'});
+    Object.assign(words.pt,{mine:'Meus pedidos',admin:'Solicitações gerais',support:'Quero também',supported:'Apoiado',supporters:'Interessados',interests:'interessados',own:'Você solicitou',requester:'Solicitado por',unknownRequester:'Solicitante original não registrado',legacy:'Registro antigo · data indisponível',approve:'Aprovar',reject:'Recusar',defer:'Acompanhar depois',respond:'Responder',sort:'Ordenar',popular:'Mais desejados',newest:'Mais recentes',oldest:'Mais antigos',openRequest:'Ver solicitação',markRead:'Marcar como lida',unread:'Não lida',readNotice:'Lida',supportedNotice:'Seu apoio foi registrado. O pedido já existia.',createdNotice:'Seu pedido foi criado.',wholeSeries:'Série completa',seasonLabel:'Temporada',episodeLabel:'Episódio',noImage:'Sem capa',unknownUser:'Conta indisponível'});
+    Object.assign(words.en,{interest:'interested'});Object.assign(words.pt,{interest:'interessado'});
+    Object.assign(words.en,{approved:'Awaiting availability',current:'Up to date',completed:'Completed',canceled:'Canceled'});
+    Object.assign(words.pt,{approved:'Aguardando disponibilidade',current:'Em dia',completed:'Finalizado',canceled:'Cancelado'});
+    let root, owner, active=false, administrator=false, tab='mine', start=0, filter='', ticket=0, sortOrder='popular', pageSize=30;
     let searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};
     let backdropUrl='',backdropPending='',backdropTimer;
-    const decisions=['pending','approved','deferred','rejected'];
+    const decisions=['pending','approved','deferred','rejected','completed','canceled'];
     const availability=['unknown','absent','partial','available'];
     const enumIndex=(value,values)=>typeof value==='number'?value:values.indexOf(String(value).toLowerCase());
     const t = key => (words[/^pt\b/i.test(document.documentElement.lang)?'pt':'en'][key] || key);
@@ -83,11 +88,11 @@
     async function api(path,method='GET',data) {const result=await ApiClient.ajax({type:method,url:ApiClient.getUrl('WUN/v1/'+path),data:data===undefined?undefined:JSON.stringify(data),contentType:'application/json',dataType:'json'});return normalize(result);}
     function live(id=ticket) {return active&&routeActive()&&root?.isConnected&&owner===ApiClient.getCurrentUserId()&&id===ticket;}
     function status(text) {if(root?.isConnected)root.querySelector('.wun-status').textContent=text;}
-    async function run(work) {const actor=owner;try{await work();}catch(error){if(live()&&actor===owner)status(error?.status===409&&tab==='search'?t('catalogYes'):error?.status===409?t('conflict'):t('error'));}}
+    async function run(work) {const actor=owner;try{await work();}catch(error){let detail;try{detail=normalize(error.responseJSON||JSON.parse(error.responseText));}catch{}if(live()&&actor===owner)status(detail?.error&&['requests_paused','content_not_allowed','active_limit'].includes(detail.error)?t(detail.error):error?.status===409&&tab==='search'?t('catalogYes'):error?.status===409?t('conflict'):t('error'));}}
     function shell() {
         root.replaceChildren(el('h1',{},[t('title')]));
         const nav=el('nav',{'aria-label':t('title')});
-        for(const value of ['all','mine','search',...(administrator?['admin']:[]),'notices']) {const b=button(t(value),()=>{tab=value;start=0;render();});b.className='emby-button wun-tab';if(value===tab)b.setAttribute('aria-current','page');nav.append(b);}
+        for(const value of [...(administrator?['admin']:[]),'mine','search','notices']) {const b=button(t(value),()=>{tab=value;start=0;render();});b.className='emby-button wun-tab';if(value===tab)b.setAttribute('aria-current','page');nav.append(b);}
         root.append(nav,el('div',{class:'wun-content'},[el('p',{class:'wun-status',role:'status'})]));
         return root.querySelector('.wun-content');
     }
@@ -97,19 +102,21 @@
         if(tab==='search') {renderSearch(content);status('');return;}
         await run(async()=>{
             if(tab==='notices') {
-                const notices=await api('notifications');if(!live(id))return;
+                const notices=await api('notifications?'+new URLSearchParams({start,limit:pageSize}));if(!live(id))return;
                 content.append(button(t('read'),()=>run(async()=>{await api('notifications/read','POST',{});await render();})));
-                for(const notice of notices) content.append(el('p',{},[(notice.event==='request'?t('requested'):t(notice.event.toLowerCase()))+' #'+notice.requestId+(notice.read?'':' •')]));
+                for(const notice of notices)content.append(notificationRow(notice));
+                appendPager(content,notices.length===pageSize);
                 status(notices.length?'':t('empty'));return;
             }
-            const query=new URLSearchParams({start,limit:30,mine:tab==='mine'});if(filter!=='')query.set('decision',filter);
-            const result=await api('requests?'+query);if(!live(id))return;
+            const query=new URLSearchParams({start,limit:pageSize,sort:sortOrder});if(filter!=='')query.set('decision',filter);
+            const result=await api((tab==='admin'?'admin/':'')+'requests?'+query);if(!live(id))return;
             const states=select([['',t('every')],...decisions.map((x,i)=>[String(i),t(x)])],filter);
-            states.addEventListener('change',()=>{filter=states.value;start=0;render();});content.append(field(t('decision'),states));
+            states.addEventListener('change',()=>{filter=states.value;start=0;render();});
+            const ordering=select([['popular',t('popular')],['newest',t('newest')],['oldest',t('oldest')]],sortOrder);
+            ordering.addEventListener('change',()=>{sortOrder=ordering.value;start=0;render();});
+            content.append(el('div',{class:'wun-list-filters'},[field(t('decision'),states),field(t('sort'),ordering)]));
             const rows=el('div',{class:'wun-rows'});for(const card of result.items)rows.append(requestRow(card));content.append(rows);
-            const previous=button(t('previous'),()=>{start=Math.max(0,start-30);render();});previous.disabled=start===0;
-            const next=button(t('next'),()=>{start+=30;render();});next.disabled=!result.hasMore;
-            if(start>0||result.hasMore)content.append(el('div',{class:'wun-pager'},[previous,t('page')+' '+(start/30+1),next]));
+            appendPager(content,result.hasMore);
             if(!result.items.length){
                 const search=button(t('search'),()=>{tab='search';start=0;render();});search.className='emby-button button-flat';
                 content.append(el('div',{class:'wun-empty'},[el('span',{class:'material-icons','aria-hidden':'true'},['movie_filter']),el('h2',{},[t('empty')]),search]));
@@ -117,6 +124,27 @@
             status('');
         });
     }
+    function appendPager(content,more){const previous=button(t('previous'),()=>{start=Math.max(0,start-pageSize);render();});previous.disabled=start===0;const next=button(t('next'),()=>{start+=pageSize;render();});next.disabled=!more;if(start>0||more)content.append(el('div',{class:'wun-pager'},[previous,t('page')+' '+(start/pageSize+1),next]));}
+    function dateText(value){if(!value)return t('legacy');try{return new Intl.DateTimeFormat(document.documentElement.lang||'en',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value));}catch{return t('legacy');}}
+    function personNode(person){
+        const name=person?.name||t('unknownUser'),node=el('span',{class:'wun-person'},[el('span',{class:'wun-avatar wun-initials','aria-hidden':'true'},[name.slice(0,1).toUpperCase()]),el('span',{},[name])]);
+        if(person?.hasImage&&person.id){let src;try{src=typeof ApiClient.getUserImageUrl==='function'?ApiClient.getUserImageUrl(person.id,{type:'Primary',tag:person.imageTag,maxWidth:64}):ApiClient.getUrl('Users/'+person.id+'/Images/Primary',{tag:person.imageTag,maxWidth:64});}catch{}if(src){const img=el('img',{class:'wun-avatar',src,alt:'',loading:'lazy'});img.onerror=()=>img.remove();node.prepend(img);}}
+        return node;
+    }
+    function coverNode(card){const cover=el('div',{class:'wun-request-cover','aria-hidden':'true'},[el('span',{class:'material-icons'},[enumIndex(card.selection.kind,['movie','series'])===1?'tv':'movie'])]);try{const url=new URL(card.imageUrl);if(url.protocol==='https:'&&url.hostname==='image.tmdb.org'){const img=el('img',{src:url.href,alt:'',loading:'lazy',decoding:'async',referrerpolicy:'no-referrer'});img.onerror=()=>img.remove();cover.append(img);}}catch{}return cover;}
+    function requestMeta(card){const s=card.selection,series=enumIndex(s.kind,['movie','series'])===1;const bits=[t(card.isAnime?'anime':series?'seriesSingle':'movieSingle')];if(card.year)bits.push(String(card.year));if(series)bits.push(s.season==null?t('wholeSeries'):t('seasonLabel')+' '+s.season+(s.episode!=null?' · '+t('episodeLabel')+' '+s.episode:''));return el('p',{class:'wun-request-meta'},[bits.join(' · ')+(card.current?' · '+t('current'):'')]);}
+    function notificationRow(notice){
+        const card=notice.request,node=el('article',{class:'wun-row wun-notice'+(notice.read?'':' wun-unread')});
+        if(card)node.append(coverNode(card));const body=el('div',{class:'wun-request-body'});
+        body.append(el('p',{class:'wun-notice-event'},[(notice.event==='request'?t('requested'):t(String(notice.event).toLowerCase()))+' · '+t(notice.read?'readNotice':'unread')]));
+        if(card){body.append(el('h2',{},[card.selection.title]),requestMeta(card));}
+        if(notice.message)body.append(el('p',{class:'wun-notice-message'},[notice.message]));
+        if(notice.actor)body.append(personNode(notice.actor));body.append(el('p',{class:'wun-request-date'},[dateText(notice.created)]));
+        const actions=el('div',{class:'wun-actions'},[button(t('openRequest'),()=>openRequest(notice.requestId))]);
+        if(!notice.read)actions.append(button(t('markRead'),()=>run(async()=>{await api('notifications/'+notice.id+'/read','POST',{});await render();})));
+        body.append(actions);node.append(body);return node;
+    }
+    async function openRequest(id){const generation=ticket;await run(async()=>{const card=await api((administrator?'admin/':'')+'requests/'+id);if(!live(generation))return;const node=el('dialog',{class:'wun-request-dialog'},[requestRow(card,administrator),button(t('cancel'),()=>node.close())]);node.addEventListener('close',()=>node.remove(),{once:true});root.append(node);node.showModal();});}
     function titleNode(title, imdbId) {
         const valid=/^tt[0-9]{7,12}$/.test(imdbId||'');
         const href=valid?'https://www.imdb.com/title/'+imdbId+'/':'https://www.imdb.com/find/?q='+encodeURIComponent(title);
@@ -134,15 +162,18 @@
         const id=card.catalog?.itemId;
         return /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(id||'')?button(t('openCatalog'),()=>{location.hash='/details?id='+encodeURIComponent(id);}):null;
     }
-    function requestRow(card) {
+    function requestRow(card,manage=tab==='admin') {
         const s=card.selection, kind=typeof s.kind==='number'?s.kind:(s.kind==='Movie'?0:1);
-        const row=el('article',{class:'wun-row'},[titleNode(s.title,card.imdbId),el('p',{},[t(decisions[enumIndex(card.decision,decisions)])+' · '+t(availability[enumIndex(card.availability,availability)]||'unknown')])]);
-        if(s.season!==null&&s.season!==undefined)row.append(el('p',{},['S'+s.season+(s.episode!=null?' · E'+s.episode:'')]));
-        if(card.catalog){row.append(presenceNode(card));const open=catalogButton(card);if(open)row.append(open);}
-        if(card.monitor)row.append(el('p',{},[t('continuous')]));
-        const actions=el('div',{class:'wun-actions'},[button(t(tab==='mine'?'unfollow':'follow'),()=>run(async()=>{await api('requests/'+card.id+'/follow?enabled='+(tab!=='mine'),'PUT',{});await render();})),button(t('history'),()=>showHistory(card))]);
-        actions.prepend(button(t('details'),()=>showDetails({kind:kind===0?'Movie':'Series',tmdbId:s.tmdbId,title:s.title,catalog:card.catalog,imdbId:card.imdbId})));
-        if(tab==='admin'&&administrator)actions.append(button(t('admin'),()=>edit(card)));row.append(actions);return row;
+        const row=el('article',{class:'wun-row wun-request-card','data-request-id':card.id}),body=el('div',{class:'wun-request-body'},[titleNode(s.title,card.imdbId),requestMeta(card),el('p',{class:'wun-request-state'},[t(decisions[enumIndex(card.decision,decisions)])+' · '+t(availability[enumIndex(card.availability,availability)]||'unknown')])]);
+        body.append(el('p',{class:'wun-request-interest'},[String(card.supportCount||0)+' '+t(card.supportCount===1?'interest':'interests')+(card.ownRequest?' · '+t('own'):'')]));if(card.created)body.append(el('p',{class:'wun-request-date'},[dateText(card.created)]));
+        if(manage){if(card.requester)body.append(el('div',{class:'wun-requester'},[el('span',{},[t('requester')+': ']),personNode(card.requester)]));else body.append(el('p',{class:'wun-legacy-owner'},[t(card.requesterKnown?'unknownUser':'unknownRequester')]));if(card.supporters?.length)body.append(el('div',{class:'wun-supporters'},[el('span',{},[t('supporters')+': ']),...card.supporters.map(personNode)]));}
+        if(card.catalog?.obtained){body.append(presenceNode(card));const open=catalogButton(card);if(open)body.append(open);}
+        if(card.monitor)body.append(el('p',{},[t('continuous')]));
+        const support=button(t(card.supporting?'supported':'support'),()=>run(async()=>{await toggleSupport(card.id,!card.supporting);await render();}));support.setAttribute('aria-pressed',String(!!card.supporting));support.prepend(el('span',{class:'material-icons','aria-hidden':'true'},['thumb_up']));
+        const actions=el('div',{class:'wun-actions'},[support,...(manage?[]:[button(t(card.following?'unfollow':'follow'),()=>run(async()=>{await api('requests/'+card.id+'/follow?enabled='+!card.following,'PUT',{});await render();}))]),button(t('history'),()=>showHistory(card))]);
+        actions.prepend(button(t('details'),()=>showDetails({kind:kind===0?'Movie':'Series',tmdbId:s.tmdbId,title:s.title,catalog:card.catalog,imdbId:card.imdbId,imageUrl:card.imageUrl})));
+        if(manage&&administrator){const approve=button(t('approve'),()=>edit(card,1));approve.className='emby-button button-submit';const review=el('div',{class:'wun-actions wun-review-actions'},[approve,button(t('reject'),()=>edit(card,3)),button(t('defer'),()=>edit(card,2))]);body.append(review);actions.append(button(t('respond'),()=>edit(card)));}body.append(actions);
+        row.append(coverNode(card),body);return row;
     }
     function renderSearch(content) {
         const query=el('input',{class:'emby-input',type:'search',maxlength:'150',required:'',minlength:'2',autocomplete:'off',placeholder:t('query')+' / tt0083658 / imdb:tt0083658 / tmdb:78'});
@@ -169,7 +200,8 @@
         function draw(cards){results.replaceChildren();
             for(const card of cards){
                 const actions=el('div',{class:'wun-actions'}),open=catalogButton(card);actions.append(button(t('details'),()=>showDetails(card)));if(open)actions.append(open);
-                if(!card.catalog?.obtained||card.kind==='Series')actions.append(button(t(card.catalog?.obtained?'requestEpisodes':'request'),()=>card.kind==='Series'?showDetails(card):request(card)));
+                if(card.requestId){const vote=button(t(card.supporting?'supported':'support'),()=>run(async()=>{const actor=owner;const response=await toggleSupport(card.requestId,!card.supporting);if(!live()||owner!==actor)return;card.supporting=response.supporting;card.supportCount=response.supportCount;draw(searchState.cards);status(t('saved'));}));vote.setAttribute('aria-pressed',String(!!card.supporting));actions.append(vote);}
+                else if(!card.catalog?.obtained||card.kind==='Series')actions.append(button(t(card.catalog?.obtained?'requestEpisodes':'request'),()=>card.kind==='Series'?showDetails(card):request(card)));
                 const meta=el('div',{class:'wun-result-meta'},[el('span',{class:'wun-type'},[t(card.kind==='Series'?'seriesSingle':'movieSingle')]),...(card.isAnime?[el('span',{class:'wun-type'},[t('anime')])]:[]),...(card.year?[el('span',{},[String(card.year)])]:[]),...(card.rating>0?[el('span',{},['★ '+new Intl.NumberFormat(document.documentElement.lang||'en',{minimumFractionDigits:1,maximumFractionDigits:1}).format(card.rating)])]:[])]);
                 const body=el('div',{class:'wun-result-body'},[titleNode(card.title,card.imdbId),meta,el('p',{class:'wun-result-genres'},[(card.genres||[]).join(' · ')]),...(card.catalog?[presenceNode(card)]:[]),actions]);
                 const row=el('article',{class:'wun-row'+(card.catalog?.obtained?' wun-available':'')},[body]);
@@ -262,20 +294,35 @@
         const node=el('dialog',{},[el('h2',{},[title])]);for(const f of fields)node.append(f);
         const close=()=>{node.close();node.remove();};
         const submit=button(t('save'),()=>run(async()=>{submit.disabled=true;try{await save();close();}finally{submit.disabled=false;}}));
+        submit.className='emby-button button-submit';
         node.append(el('div',{class:'wun-actions'},[button(t('cancel'),close),submit]));node.addEventListener('close',()=>node.remove(),{once:true});root.append(node);node.showModal();return node;
+    }
+    async function toggleSupport(id,enabled) {
+        try{return await api('requests/'+id+'/support?enabled='+enabled,'PUT',{});}catch(error){
+            if(enabled&&error.status===409){const card=await api('requests/'+id);const s=card.selection;await createRequest({kind:typeof s.kind==='number'?(s.kind===0?'Movie':'Series'):s.kind,tmdbId:s.tmdbId,season:s.season,episode:s.episode});return api('requests/'+id+'/support?enabled=true','PUT',{});}throw error;
+        }
+    }
+    async function createRequest(body) {
+        try{return await api('requests','POST',body);}catch(error){
+            if(error.status===409){let info;try{info=normalize(error.responseJSON||JSON.parse(error.responseText));}catch{}if(info?.error==='reopen_confirmation'&&window.confirm((/^pt\b/i.test(document.documentElement.lang)?'Este pedido foi recusado ou cancelado. Deseja reabrir para análise?':'This request was declined or canceled. Reopen for review?')+'\n'+(info.message||'')))return api('requests','POST',{...body,confirmReopen:true});}
+            throw error;
+        }
     }
     function request(card) {
         const season=el('input',{class:'emby-input',type:'number',min:'0',step:'1'}),episode=el('input',{class:'emby-input',type:'number',min:'1',step:'1'});
         season.value=card.season??'';episode.value=card.episode??'';
         dialog(card.title,card.kind==='Series'?[field(t('season'),season),field(t('episode'),episode)]:[],async()=>{
             if(!season.checkValidity()||!episode.checkValidity()||(episode.value&&!season.value)){season.reportValidity();throw new Error('invalid scope');}
-            await api('requests','POST',{kind:card.kind,tmdbId:card.tmdbId,season:season.value?Number(season.value):null,episode:episode.value?Number(episode.value):null});status(t('sent'));
+            const result=await createRequest({kind:card.kind,tmdbId:card.tmdbId,season:season.value?Number(season.value):null,episode:episode.value?Number(episode.value):null});tab='mine';start=0;await render();status(t(result.existingRequest?'supportedNotice':'createdNotice'));
         });
     }
-    function edit(card) {
-        const decision=select(decisions.map((x,i)=>[String(i),t(x)]),String(enumIndex(card.decision,decisions)));
-        const message=el('textarea',{class:'emby-input',maxlength:'2000'}),note=el('textarea',{class:'emby-input',maxlength:'4000'}),review=el('input',{class:'emby-input',type:'date'}),monitor=select([['true',t('yes')],['false',t('no')]],String(card.monitor));
-        dialog(card.selection.title,[field(t('decision'),decision),field(t('message'),message),field(t('note'),note),field(t('review'),review),field(t('monitor'),monitor)],async()=>{await api('admin/requests/'+card.id,'PUT',{revision:card.revision,decision:Number(decision.value),message:message.value,internalNote:note.value,reviewAt:review.value?review.value+'T12:00:00Z':null,monitor:monitor.value==='true'});await render();});
+    async function edit(card,selected) {
+        const generation=ticket;await run(async()=>{const latest=await api('admin/requests/'+card.id);if(!live(generation))return;
+        const decision=select(decisions.map((x,i)=>[String(i),t(x)]),String(selected??enumIndex(latest.decision,decisions)));
+        const message=el('textarea',{class:'emby-input',maxlength:'2000'}),note=el('textarea',{class:'emby-input',maxlength:'4000'}),review=el('input',{class:'emby-input',type:'date'}),monitor=select([['true',t('yes')],['false',t('no')]],String(latest.monitor));
+        message.value=latest.lastDecision?.public?.message||'';note.value=latest.lastDecision?.internalNote||'';review.value=latest.lastDecision?.reviewAt?.slice(0,10)||'';
+        const node=dialog(latest.selection.title,[field(t('decision'),decision),field(t('message'),message),field(t('note'),note),field(t('review'),review),field(t('monitor'),monitor)],async()=>{await api('admin/requests/'+latest.id,'PUT',{revision:latest.revision,decision:Number(decision.value),message:message.value,internalNote:note.value,reviewAt:review.value?review.value+'T12:00:00Z':null,monitor:monitor.value==='true'});await render();});
+        const submit=node.querySelector('.wun-actions button:last-child');const label=()=>{submit.textContent=t(Number(decision.value)===1?'approve':Number(decision.value)===3?'reject':Number(decision.value)===2?'defer':'save');};decision.addEventListener('change',label);label();});
     }
     async function showHistory(card) {const id=ticket;await run(async()=>{const entries=await api((administrator&&tab==='admin'?'admin/':'')+'requests/'+card.id+'/history');if(!live(id))return;const rows=entries.map(entry=>{const item=entry.public||entry;return el('article',{class:'wun-row'},[el('p',{},[new Intl.DateTimeFormat(document.documentElement.lang||'en',{dateStyle:'medium',timeStyle:'short'}).format(new Date(item.created))+' · '+t(decisions[enumIndex(item.decision,decisions)])]),el('p',{},[item.message||'']),...(entry.internalNote?[el('p',{},[t('note')+': '+entry.internalNote])]:[])]);});const node=el('dialog',{},[el('h2',{},[card.selection.title]),...rows,button(t('cancel'),()=>node.close())]);node.addEventListener('close',()=>node.remove(),{once:true});root.append(node);node.showModal();});}
     async function activate() {
@@ -284,9 +331,9 @@
         if(!visible||!current){if(active){active=false;ticket++;root.querySelectorAll('dialog').forEach(x=>x.remove());}clearSurface();return;}
         if(active&&owner===current){paintSurface();return;}
         const changed=owner!==current;
-        if(changed){clearSurface();backdropUrl='';searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};tab='all';start=0;filter='';}
+        if(changed){clearSurface();backdropUrl='';searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};tab='mine';start=0;filter='';}
         active=true;owner=current;const activationTicket=++ticket;root.replaceChildren();paintSurface();initialBackdrop();
-        try{const me=await api('me');if(!live(activationTicket))return;administrator=me.administrator;if(tab==='admin'&&!administrator)tab='all';await render();}
+        try{const me=await api('me');if(!live(activationTicket))return;administrator=me.administrator;pageSize=Math.max(10,Math.min(100,Number(me.pageSize)||30));if(changed){tab=administrator?'admin':'mine';sortOrder=administrator?(me.administratorOrder||'popular'):'newest';}if(tab==='admin'&&!administrator)tab='mine';await render();}
         catch{if(live(activationTicket))root.textContent=t('error');}
     }
 

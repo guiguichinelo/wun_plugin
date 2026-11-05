@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html><head><title>WUN</title></head><body>
+<div id="wunConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-select,emby-button">
+ <div data-role="content"><div class="content-primary">
+  <style>
+   #wunConfigurationPage [hidden]{display:none!important}
+   #wunConfigurationPage .content-primary{max-width:72em;margin-inline:auto;padding-bottom:2em}
+   #wunConfigurationPage .wun-config-tabs{display:flex;gap:.5em;border-bottom:1px solid #8884;margin:1.5em 0;overflow:auto}
+   #wunConfigurationPage .wun-config-tabs button{white-space:nowrap;border-radius:0;padding:.8em 1em;border-bottom:3px solid transparent}
+   #wunConfigurationPage .wun-config-tabs [aria-selected=false]{border-bottom-color:transparent!important}
+   #wunConfigurationPage .wun-config-tabs [aria-selected=true]{border-bottom-color:var(--primary-accent-color,#00a4dc)}
+   #wunConfigurationPage .wun-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(8.5em,1fr));gap:.75em;margin:1em 0 1.5em}
+   #wunConfigurationPage .wun-metric{padding:1em;background:color-mix(in srgb,currentColor 4%,transparent);border:1px solid #8883;border-radius:.35em}
+   #wunConfigurationPage .wun-metric strong{display:block;font-size:1.7em;font-weight:500;margin-bottom:.2em}
+   #wunConfigurationPage .wun-metric span{font-size:.9em;opacity:.8}
+   #wunConfigurationPage .wun-admin-heading{display:flex;align-items:center;justify-content:space-between;gap:1em}
+   #wunConfigurationPage .wun-ranking{padding-inline-start:1.5em;max-width:50em}
+   #wunConfigurationPage .wun-ranking li{padding:.85em .4em;border-bottom:1px solid #8883;line-height:1.5}
+   #wunConfigurationPage .wun-config-form{max-width:none}
+   #wunConfigurationPage .wun-config-row{max-width:46em;padding:1em 0;border-bottom:1px solid #8883}
+   #wunConfigurationPage .wun-config-row .inputLabel{display:block;margin-bottom:.5em}
+   #wunConfigurationPage .wun-config-row input[type=number]{max-width:12em}
+   #wunConfigurationPage .wun-config-boolean{display:flex;align-items:center;gap:.8em}
+   #wunConfigurationPage .wun-config-boolean .inputLabel{margin:0;cursor:pointer}
+   #wunConfigurationPage .wun-config-check{width:1.25em;height:1.25em;flex-shrink:0;accent-color:var(--primary-accent-color,#00a4dc);cursor:pointer}
+   #wunConfigurationPage .wun-duration{display:flex;align-items:center;gap:.8em}
+   #wunConfigurationPage .wun-duration input[type=number]{width:6em}
+   #wunConfigurationPage .wun-duration input:disabled{opacity:.4}
+   #wunConfigurationPage .fieldDescription{line-height:1.5;max-width:58em}
+   #wunConfigurationPage .wun-config-details{margin:1.5em 0;padding:.9em 0;border-block:1px solid #8883}
+   #wunConfigurationPage .wun-config-details summary{cursor:pointer;padding:.4em 0}
+   #wunConfigurationPage .wun-setting-actions{display:flex;gap:1em;padding:1.25em 0;margin-top:1em;border-top:1px solid #8883}
+   #wunConfigurationPage .wun-routine{margin-top:2em}
+   #wunConfigurationPage .wun-routine button{margin:.4em .5em .4em 0}
+   #wunConfigurationPage .wun-routine-result{line-height:1.6;max-width:58em}
+   @media(max-width:600px){#wunConfigurationPage .wun-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#wunConfigurationPage .wun-config-tabs{gap:0}#wunConfigurationPage .wun-config-tabs button{padding:.8em .65em}#wunConfigurationPage .wun-routine button{display:block;width:100%;margin:.5em 0}}
+  </style>
+  <h2>What U Need?</h2>
+  <p class="fieldDescription" data-text="intro"></p>
+  <p data-config-status role="status" aria-live="polite"></p>
+  <section class="verticalSection" aria-labelledby="wunMetricsTitle">
+   <div class="wun-admin-heading"><h3 id="wunMetricsTitle" data-text="metrics"></h3><button is="emby-button" type="button" class="raised" data-refresh><span data-text="refresh"></span></button></div>
+   <p class="fieldDescription" data-updated></p>
+   <div class="wun-metrics" data-metrics></div>
+   <h3 data-text="popular"></h3><ol class="wun-ranking" data-ranking></ol>
+   <p class="fieldDescription" data-text="scope"></p>
+   <a is="emby-button" class="raised emby-button" href="#/userpluginsettings.html?pageUrl=%2FWUN%2Fweb%2Frequests.html"><span data-text="openQueue"></span></a>
+  </section>
+  <section class="verticalSection" aria-labelledby="wunSettingsTitle">
+   <h3 id="wunSettingsTitle" data-text="settings"></h3>
+   <form class="wun-config-form">
+    <div class="inputContainer"><label class="inputLabel" for="wunPageSize" data-text="pageSize"></label><input is="emby-input" id="wunPageSize" name="PageSize" type="number" min="10" max="100" step="1" required><div class="fieldDescription" data-text="pageHint"></div></div>
+    <div class="selectContainer"><label class="selectLabel" for="wunAdminOrder" data-text="order"></label><select is="emby-select" id="wunAdminOrder" name="AdministratorOrder"><option value="popular" data-text="popular"></option><option value="newest" data-text="newest"></option><option value="oldest" data-text="oldest"></option></select><div class="fieldDescription" data-text="orderHint"></div></div>
+    <div class="wun-setting-actions"><button is="emby-button" type="submit" class="raised button-submit"><span data-text="save"></span></button></div>
+   </form>
+  </section>
+ </div></div>
+ <script>
+ (()=>{
+  const page=document.getElementById('wunConfigurationPage'),pluginId='1d91696c-0fdd-46da-8734-3a3d94e33002';
+  const messages={
+   en:{intro:'Configuration and request activity for this server.',completed:'Completed',canceled:'Canceled',metrics:'Metrics',refresh:'Refresh',popular:'Most wanted',settings:'Configuration',openQueue:'Manage requests',scope:'Counts represent request records, including season and episode requests. Supports are unique per account and request. Following notifications is independent. Metrics do not measure catalog completeness.',pageSize:'Items per page',pageHint:'10 to 100 items, used for request lists and notifications.',order:'Initial order of the administrator queue',orderHint:'Applies when opening Requests. Users can change the order while browsing.',newest:'Newest first',oldest:'Oldest first',save:'Save',saved:'Configuration saved.',loading:'Loading…',error:'Could not load this information. Try again.',saveError:'Could not save the configuration. Your changes are still in the form.',empty:'No requests yet.',total:'Requests',pending:'Awaiting approval',approved:'Awaiting availability',deferred:'Follow-up',rejected:'Declined',movies:'Movie requests',series:'Series requests',supports:'Supports',interestedUsers:'Interested accounts',monitored:'Monitoring enabled',reviewsDue:'Reviews due',unknownRequesters:'Original requester unknown',updated:'Updated',movie:'Movie',tv:'Series',season:'Season',episode:'Episode',support:'support',supportPlural:'supports',legacy:'Older records did not store the original requester.'},
+   pt:{intro:'Configuração e atividade das solicitações deste servidor.',completed:'Finalizados',canceled:'Cancelados',metrics:'Métricas',refresh:'Atualizar',popular:'Mais desejados',settings:'Configuração',openQueue:'Gerenciar solicitações',scope:'Os totais contam pedidos, incluindo solicitações de temporadas e episódios. O apoio é único por conta e pedido; acompanhar notificações é independente. As métricas não medem a completude do catálogo.',pageSize:'Itens por página',pageHint:'De 10 a 100 itens, nas listas de solicitações e notificações.',order:'Ordenação inicial da fila administrativa',orderHint:'Aplicada ao abrir Solicitações. A ordem pode ser alterada durante a navegação.',newest:'Mais recentes',oldest:'Mais antigos',save:'Salvar',saved:'Configuração salva.',loading:'Carregando…',error:'Não foi possível carregar as informações. Tente novamente.',saveError:'Não foi possível salvar a configuração. As alterações continuam no formulário.',empty:'Nenhuma solicitação.',total:'Solicitações',pending:'Aguardando aprovação',approved:'Aguardando disponibilidade',deferred:'Em acompanhamento',rejected:'Recusadas',movies:'Pedidos de filmes',series:'Pedidos de séries',supports:'Apoios',interestedUsers:'Contas interessadas',monitored:'Monitoramento ativado',reviewsDue:'Revisões vencidas',unknownRequesters:'Solicitante original desconhecido',updated:'Atualizado',movie:'Filme',tv:'Série',season:'Temporada',episode:'Episódio',support:'apoio',supportPlural:'apoios',legacy:'Os registros antigos não armazenavam o solicitante original.'}
+  };
+
+  const pt=/^pt\b/i.test(document.documentElement.lang);
+  const options=[
+   ['AcceptRequests','bool',true,'Aceitar novos pedidos','Accept new requests'],
+   ['ActiveLimit','number',0,'Limite de pedidos ativos por conta (0: sem limite)','Active request limit per account (0: unlimited)'],
+   ['AllowMovies','bool',true,'Permitir filmes','Allow movies'],['AllowSeries','bool',true,'Permitir s\u00e9ries','Allow series'],['AllowAnime','bool',true,'Permitir animes','Allow anime'],
+   ['FollowByDefault','bool',true,'Acompanhar notifica\u00e7\u00f5es ao solicitar ou apoiar','Follow notifications on request or support'],
+   ['ApprovalDays','number',0,'Cancelar ap\u00f3s aprova\u00e7\u00e3o (dias; 0: desativado)','Cancel after approval (days; 0: disabled)'],
+   ['MissingReleaseDays','number',0,'Desistir ap\u00f3s lan\u00e7amento faltante (dias; 0: desativado)','Stop monitoring missing releases (days; 0: disabled)'],
+   ['CompletedDays','number',0,'Excluir finalizados (dias; 0: nunca)','Delete completed requests (days; 0: never)'],
+   ['CanceledDays','number',0,'Excluir cancelados (dias; 0: nunca)','Delete canceled requests (days; 0: never)'],
+   ['ReadDays','number',0,'Excluir notifica\u00e7\u00f5es lidas (dias; 0: nunca)','Delete read notifications (days; 0: never)']
+  ];
+
+  const form=page.querySelector('form'),main=page.querySelector('.content-primary');
+  const settingsSection=form.parentElement;settingsSection.querySelector('h3').remove();
+  const overview=page.querySelector('section[aria-labelledby="wunMetricsTitle"]');
+  const requests=document.createElement('div'),cleanup=document.createElement('div');
+  const saveActions=form.querySelector('.wun-setting-actions');
+  const display=document.createElement('details');display.className='wun-config-details';const displayTitle=document.createElement('summary');displayTitle.textContent=pt?'Exibi\u00e7\u00e3o das listas':'List display';display.append(displayTitle);
+  for(const node of [...form.children])if(node!==saveActions)display.append(node);
+  requests.append(display);form.prepend(requests,cleanup);
+  const nav=document.createElement('nav');nav.className='wun-config-tabs';nav.setAttribute('role','tablist');nav.setAttribute('aria-label',pt?'Configura\u00e7\u00e3o WUN':'WUN configuration');main.insertBefore(nav,overview);
+  const panels=[overview,requests,cleanup],tabs=[];
+  function choose(index,focus=false){panels.forEach((panel,i)=>{panel.hidden=i!==index;tabs[i].setAttribute('aria-selected',String(i===index));tabs[i].tabIndex=i===index?0:-1;});saveActions.hidden=index===0;if(index===2)cleanup.insertBefore(saveActions,maintenance);else form.append(saveActions);if(focus)tabs[index].focus();}
+  for(const [index,label]of [pt?'Vis\u00e3o geral':'Overview',pt?'Pedidos':'Requests',pt?'Limpeza e rotinas':'Cleanup and tasks'].entries()){
+   const tab=document.createElement('button');tab.type='button';tab.className='emby-button button-flat';tab.id='wun-config-tab-'+index;tab.setAttribute('role','tab');tab.setAttribute('aria-controls','wun-config-panel-'+index);tab.textContent=label;tab.onclick=()=>choose(index);tab.onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const rtl=document.dir==='rtl'||document.documentElement.dir==='rtl';choose(e.key==='Home'?0:e.key==='End'?2:(index+((e.key==='ArrowRight')!==rtl?1:2))%3,true);}};tabs.push(tab);nav.append(tab);panels[index].id='wun-config-panel-'+index;panels[index].setAttribute('role','tabpanel');panels[index].setAttribute('aria-labelledby',tab.id);
+  }
+  function heading(parent,title,description){const h=document.createElement('h3');h.textContent=title;parent.append(h);if(description){const p=document.createElement('p');p.className='fieldDescription';p.textContent=description;parent.append(p);}}
+  heading(requests,pt?'Recebimento de pedidos':'Request rules',pt?'Controle quem pode solicitar e quais tipos de conte\u00fado podem entrar na fila.':'Choose which requests can enter the queue.');requests.append(display);
+  const expiration=document.createElement('div');cleanup.append(expiration);heading(expiration,pt?'Desist\u00eancia autom\u00e1tica':'Automatic expiration',pt?'Opcional. Pedidos s\u00e3o preservados enquanto estas regras estiverem desativadas.':'Optional. Requests are preserved while these rules are disabled.');
+  const retention=document.createElement('div');cleanup.append(retention);heading(retention,pt?'Reten\u00e7\u00e3o dos registros':'Record retention',pt?'Remova apenas registros encerrados. Arquivos de m\u00eddia nunca s\u00e3o exclu\u00eddos.':'Remove terminal records only. Media files are never deleted.');
+  const durationNames=['ApprovalDays','MissingReleaseDays','CompletedDays','CanceledDays','ReadDays'];
+  const hints={ApprovalDays:[90,'Conta desde a \u00faltima aprova\u00e7\u00e3o, mesmo antes do lan\u00e7amento.','Counts from the latest approval, including before release.'],MissingReleaseDays:[30,'Conta desde o lan\u00e7amento mais antigo ainda ausente, enquanto houver acompanhamento.','Counts from the oldest missing release while monitoring.'],CompletedDays:[180,'Conta desde a finaliza\u00e7\u00e3o. Remove tamb\u00e9m o hist\u00f3rico e os v\u00ednculos do pedido.','Counts from completion; also removes request history and relationships.'],CanceledDays:[180,'Conta desde o cancelamento. Pedidos recusados continuam preservados.','Counts from cancellation. Declined requests remain preserved.'],ReadDays:[90,'Conta desde a leitura. Notifica\u00e7\u00f5es sem data conhecida permanecem.','Counts from reading. Notifications with unknown dates are preserved.']};
+  for(const [name,type,initial,br,en]of options){
+   const target=['CompletedDays','CanceledDays','ReadDays'].includes(name)?retention:durationNames.includes(name)?expiration:requests;
+   const wrap=document.createElement('div');wrap.className='wun-config-row';
+   const label=document.createElement('label');label.htmlFor='wun'+name;label.className='inputLabel';label.textContent=(pt?br:en).replace(/ \(.*\)$/,'');
+   let input;
+   if(type==='bool'){
+    input=document.createElement('input');input.type='checkbox';input.className='wun-config-check';input.checked=initial;wrap.classList.add('wun-config-boolean');wrap.append(input,label);
+   }else{
+    input=document.createElement('input');input.type='number';input.min=durationNames.includes(name)?'1':'0';input.max='36500';input.step='1';input.required=true;input.className='emby-input';input.value=String(initial);
+    wrap.append(label);
+    if(durationNames.includes(name)){
+     label.textContent=label.textContent.replace(/ \(.*$/,'');label.htmlFor='wunEnable'+name;
+     const control=document.createElement('div');control.className='wun-duration';const enable=document.createElement('input');enable.id='wunEnable'+name;enable.type='checkbox';enable.className='wun-config-check';enable.setAttribute('aria-label',label.textContent);const unit=document.createElement('span');unit.textContent=pt?'dias':'days';input.setAttribute('aria-label',label.textContent+' ('+unit.textContent+')');input.value=String(hints[name][0]);input.disabled=true;enable.onchange=()=>{input.disabled=!enable.checked;};control.append(enable,input,unit);wrap.append(control);
+     const hint=document.createElement('p');hint.className='fieldDescription';hint.textContent=hints[name][pt?1:2];wrap.append(hint);
+    }else{wrap.append(input);const hint=document.createElement('p');hint.className='fieldDescription';hint.textContent=pt?'Sem limite quando definido como 0. Apoios n\u00e3o consomem cota.':'0 means unlimited. Supports do not consume quota.';wrap.append(hint);}
+   }
+   input.id='wun'+name;input.dataset.setting=name;target.append(wrap);
+  }
+  requests.append(display);
+  const maintenance=document.createElement('section');maintenance.className='verticalSection wun-routine';heading(maintenance,pt?'Executar rotinas':'Run tasks');const description=document.createElement('p');description.className='fieldDescription';description.textContent=pt?'Simule com as op\u00e7\u00f5es do formul\u00e1rio. A execu\u00e7\u00e3o usa as configura\u00e7\u00f5es salvas. A exclus\u00e3o de pedidos inclui apoios, seguidores, hist\u00f3rico e notifica\u00e7\u00f5es vinculadas.':'Preview uses the form. Execution uses saved settings. Deleting requests includes supports, followers, history and linked notifications.';const output=document.createElement('p');output.className='wun-routine-result';output.setAttribute('role','status');maintenance.append(description,output);cleanup.append(maintenance);
+  const details=document.createElement('details');details.className='wun-config-details';const summary=document.createElement('summary');summary.textContent=pt?'Outras m\u00e9tricas':'More metrics';const extra=document.createElement('div');extra.className='wun-metrics';extra.dataset.extraMetrics='';details.append(summary,extra);overview.querySelector('[data-metrics]').after(details);details.append(overview.querySelector('[data-text=scope]'));
+  choose(0);
+  function lastCleanupText(value){try{const last=normalize(JSON.parse(value));return ' | '+(pt?'Última limpeza: ':'Last cleanup: ')+new Intl.DateTimeFormat(document.documentElement.lang||'en',{dateStyle:'short',timeStyle:'short'}).format(new Date(last.at))+'; '+last.requests+' '+(pt?'pedidos removidos':'requests removed')+'; '+last.notifications+' '+(pt?'notificações lidas removidas':'read notifications removed');}catch{return '';}}
+  async function preview(saved=false){const query=new URLSearchParams();for(const name of ['CompletedDays','CanceledDays','ReadDays'])query.set(name[0].toLowerCase()+name.slice(1),(durationNames.includes(name)&&!page.querySelector('#wunEnable'+name).checked)?0:page.querySelector('#wun'+name).value);return normalize(await ApiClient.ajax({url:ApiClient.getUrl('WUN/v1/admin/maintenance/preview')+(saved?'':'?'+query),type:'GET',dataType:'json'}));}
+  function summarize(data){const c=data.candidates;return (pt?'Pedidos: ':'Requests: ')+c.requests.length+'; '+(pt?'notifica\u00e7\u00f5es lidas: ':'read notifications: ')+c.notifications.length;}
+  for(const [key,br,en]of [['preview','Simular limpeza','Preview cleanup'],['WUN.Cleanup','Executar limpeza','Run cleanup'],['WUN.Availability','Atualizar disponibilidade agora','Update availability now']]){const button=document.createElement('button');button.type='button';button.className='emby-button raised';button.textContent=pt?br:en;button.addEventListener('click',async()=>{button.disabled=true;try{if(key==='preview'){const data=await preview();output.textContent=summarize(data)+(data.lastCleanup?lastCleanupText(data.lastCleanup):'');return;}if(key==='WUN.Cleanup'){const data=await preview(true);if(!confirm(summarize(data)+'\n'+description.textContent))return;}const tasks=await ApiClient.ajax({url:ApiClient.getUrl('ScheduledTasks'),type:'GET',dataType:'json'});const task=tasks.find(t=>t.Key===key);if(!task)throw Error('task unavailable');await ApiClient.ajax({url:ApiClient.getUrl('ScheduledTasks/Running/'+task.Id),type:'POST'});output.textContent=pt?'Execu\u00e7\u00e3o solicitada. Acompanhe em Tarefas Agendadas.':'Execution requested. Check Scheduled Tasks for progress.';}catch{status('error');}finally{button.disabled=false;}});maintenance.append(button);}
+
+  let generation=0,loadingConfig=false,saving=false;
+  const normalize=v=>Array.isArray(v)?v.map(normalize):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).map(([k,x])=>[k[0].toLowerCase()+k.slice(1),normalize(x)])):v;
+  const text=k=>(messages[/^pt\b/i.test(document.documentElement.lang)?'pt':'en'][k]||k);
+  const status=(key)=>{page.querySelector('[data-config-status]').textContent=key?text(key):'';};
+  function translate(){page.querySelectorAll('[data-text]').forEach(n=>n.textContent=text(n.dataset.text));}
+  async function metrics(){
+   const current=++generation,button=page.querySelector('[data-refresh]');button.disabled=true;
+   try{
+    const data=normalize(await ApiClient.ajax({type:'GET',url:ApiClient.getUrl('WUN/v1/admin/metrics'),dataType:'json'}));if(current!==generation||!page.isConnected)return;
+    const grid=page.querySelector('[data-metrics]');grid.replaceChildren();extra.replaceChildren();
+    for(const key of ['total','pending','approved','deferred','rejected','movies','series','supports','interestedUsers','monitored','reviewsDue','unknownRequesters','completed','canceled']){
+     const cell=document.createElement('div');cell.className='wun-metric';const value=document.createElement('strong'),label=document.createElement('span');value.textContent=new Intl.NumberFormat(document.documentElement.lang||'en').format(data[key]);label.textContent=text(key);cell.append(value,label);if(key==='unknownRequesters')cell.title=text('legacy');(['total','pending','approved','deferred','reviewsDue'].includes(key)?grid:extra).append(cell);
+    }
+    const ranking=page.querySelector('[data-ranking]');ranking.replaceChildren();
+    for(const item of data.mostWanted||[]){const row=document.createElement('li');const kind=item.kind===0||item.kind==='Movie'?text('movie'):text('tv');const scope=[kind,item.season!=null?text('season')+' '+item.season:null,item.episode!=null?text('episode')+' '+item.episode:null].filter(Boolean).join(' · ');row.textContent=item.title+' · '+scope+' · '+item.supports+' '+text(item.supports===1?'support':'supportPlural');ranking.append(row);}
+    if(!ranking.children.length){const row=document.createElement('li');row.textContent=text('empty');ranking.append(row);}
+    page.querySelector('[data-updated]').textContent=text('updated')+' · '+new Intl.DateTimeFormat(document.documentElement.lang||'en',{dateStyle:'short',timeStyle:'short'}).format(new Date(data.generatedAt));
+   }catch{if(current===generation){page.querySelector('[data-metrics]').replaceChildren();extra.replaceChildren();page.querySelector('[data-ranking]').replaceChildren();page.querySelector('[data-updated]').textContent='';status('error');}}
+   finally{if(current===generation)button.disabled=false;}
+  }
+  async function show(){
+   translate();if(loadingConfig||saving)return;loadingConfig=true;status('loading');const form=page.querySelector('form');form.querySelector('button[type=submit]').disabled=true;
+   try{const config=await ApiClient.getPluginConfiguration(pluginId);for(const [name,type,initial]of options){const input=page.querySelector('#wun'+name),value=config[name]??initial;if(type==='bool')input.checked=!!value;else if(durationNames.includes(name)){page.querySelector('#wunEnable'+name).checked=value>0;input.disabled=!(value>0);input.value=String(value>0?value:hints[name][0]);}else input.value=String(value);}page.querySelector('#wunPageSize').value=config.PageSize??30;page.querySelector('#wunAdminOrder').value=config.AdministratorOrder||'popular';status('');await metrics();try{const recent=await preview(true);output.textContent=lastCleanupText(recent.lastCleanup||'').replace(/^ \| /,'');const tasks=await ApiClient.ajax({url:ApiClient.getUrl('ScheduledTasks'),type:'GET',dataType:'json'});if(Array.isArray(tasks))for(const task of tasks.filter(x=>['WUN.Cleanup','WUN.Availability'].includes(x.Key))){const last=task.LastExecutionResult;if(last)output.textContent+=' | '+(task.Key==='WUN.Cleanup'?(pt?'Limpeza':'Cleanup'):(pt?'Disponibilidade':'Availability'))+': '+(last.Status==='Completed'?(pt?'Concluída':'Completed'):last.Status==='Failed'?(pt?'Falhou':'Failed'):last.Status);}}catch{}}
+   catch{status('error');}finally{loadingConfig=false;form.querySelector('button[type=submit]').disabled=false;}
+  }
+  page.addEventListener('pageshow',show);
+  page.addEventListener('pagehide',()=>{generation++;});
+  page.querySelector('[data-refresh]').addEventListener('click',()=>{status('');metrics();});
+  page.querySelector('form').addEventListener('submit',async event=>{
+   event.preventDefault();if(saving||loadingConfig||!event.target.reportValidity())return;saving=true;const button=event.target.querySelector('button[type=submit]');button.disabled=true;
+   try{const config=await ApiClient.getPluginConfiguration(pluginId);for(const [name,type]of options)config[name]=type==='bool'?page.querySelector('#wun'+name).checked:durationNames.includes(name)&&!page.querySelector('#wunEnable'+name).checked?0:Number(page.querySelector('#wun'+name).value);if(options.some(([name])=>['CompletedDays','CanceledDays','ReadDays'].includes(name)&&config[name]>0)){const impact=await preview();if(!confirm(summarize(impact)+'\n'+description.textContent))return;}config.PageSize=Number(page.querySelector('#wunPageSize').value);config.AdministratorOrder=page.querySelector('#wunAdminOrder').value;await ApiClient.updatePluginConfiguration(pluginId,config);status('saved');}
+   catch{status('saveError');}finally{saving=false;button.disabled=false;}
+  });
+  form.addEventListener('input',()=>{page.querySelector('[data-config-status]').textContent=pt?'Altera\u00e7\u00f5es n\u00e3o salvas.':'Unsaved changes.';});
+  translate();
+ })();
+ </script>
+</div></body></html>

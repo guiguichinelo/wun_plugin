@@ -19,7 +19,8 @@ with sync_playwright() as playwright:
               if(path.endsWith('/me'))return {Administrator:admin};
               if(path.includes('/search?'))return [{Kind:'Movie',TmdbId:'42',Title:'<img src=x onerror=alert(1)>',Year:2020}];
               if(path.includes('/history'))return [];
-              if(path.endsWith('/notifications'))return [];
+              if(/\/admin\/requests\/1$/.test(path))return {Id:1,Selection:{Kind:'Series',TmdbId:'42',Title:'Fixture series'},Decision:0,Monitor:true,Revision:1};
+              if(path.includes('/notifications'))return [];
               if(path.includes('/requests?'))return {Items:[{Id:1,Selection:{Kind:'Series',TmdbId:'42',Title:'Fixture series',Season:null,Episode:null},Decision:'Pending',Availability:'Unknown',Monitor:true,Revision:1}],HasMore:false};
               return {};
             }};
@@ -31,9 +32,13 @@ with sync_playwright() as playwright:
         except Exception:
             print(page.evaluate('({calls, text:document.body.innerText})'), errors)
             raise
-        assert page.get_by_role('button', name='Gerenciar', exact=True).count() == int(administrator)
-        page.get_by_role('button', name='Acompanhar', exact=True).click()
-        page.wait_for_function("calls.some(x=>x.type==='PUT'&&x.url.includes('/follow?enabled=true'))")
+        assert page.get_by_role('button', name='Solicitações gerais', exact=True).count() == int(administrator)
+        if administrator:
+            page.get_by_role('button', name='Quero também', exact=True).click()
+            page.wait_for_function("calls.some(x=>x.type==='PUT'&&x.url.includes('/support?enabled=true'))")
+        else:
+            page.get_by_role('button', name='Acompanhar', exact=True).click()
+            page.wait_for_function("calls.some(x=>x.type==='PUT'&&x.url.includes('/follow?enabled=true'))")
         page.get_by_role('button', name='Pesquisar', exact=True).click()
         page.get_by_label('Título ou identificação').fill('Fixture')
         # Simulate a host keyboard handler that cancels implicit form submission.
@@ -47,11 +52,11 @@ with sync_playwright() as playwright:
         page.locator('dialog').get_by_role('button', name='Salvar').click()
         page.wait_for_function("calls.some(x=>x.type==='POST'&&x.url.endsWith('/requests'))")
         if administrator:
-            page.get_by_role('button', name='Gerenciar', exact=True).click()
-            page.locator('article').get_by_role('button', name='Gerenciar').click()
+            page.get_by_role('button', name='Solicitações gerais', exact=True).click()
+            page.locator('article').get_by_role('button', name='Aprovar', exact=True).click()
             page.get_by_label('Decisão', exact=True).last.select_option('1')
             page.get_by_label('Nota interna').fill('Private fixture note')
-            page.locator('dialog').get_by_role('button', name='Salvar').click()
+            page.locator('dialog').get_by_role('button', name='Aprovar', exact=True).click()
             page.wait_for_function("calls.some(x=>x.type==='PUT'&&x.url.includes('/admin/requests/'))")
             page.evaluate('''()=>{window.fixtureIdentity='fixture-user';ApiClient.getCurrentUserId=()=>fixtureIdentity;const original=ApiClient.ajax;ApiClient.ajax=req=>req.url.includes('/history')?new Promise(resolve=>window.releaseHistory=resolve):original(req);}''')
             page.locator('article').get_by_role('button', name='Histórico').click()

@@ -1,4 +1,4 @@
-# WUN alpha API
+# WUN beta 3 API
 
 All `/WUN/v1` routes require native Jellyfin authentication. User identifiers in
 request payloads are ignored; identity comes from the authenticated claim.
@@ -9,16 +9,16 @@ Responses disable shared caching. JSON property casing follows the host settings
 |---|---|---|
 | GET | `/WUN/v1/me` | Current administrator capability |
 | GET | `/WUN/v1/search?query=...&kind=Movie` | Up to 12 permitted results; All (default), Movie or Series; title, numeric TMDb ID, tmdb:ID, tt ID, imdb:tt ID or IMDb title URL |
-| GET | `/WUN/v1/requests` | start, limit (1..100), mine, optional decision; items and hasMore |
+| GET | `/WUN/v1/requests` | start, limit (1..100), optional decision/sort; always the current user's authored/supported requests; items and hasMore |
 | POST | `/WUN/v1/requests` | kind, tmdbId, optional season/episode; title resolved server-side |
 | PUT | `/WUN/v1/requests/{id}/follow?enabled=true` | Change the authenticated user's subscription |
 | GET | `/WUN/v1/requests/{id}/history` | Public replies without actor or private notes |
 | PUT | `/WUN/v1/admin/requests/{id}` | revision, decision, message, internalNote, reviewAt, monitor |
 | GET | `/WUN/v1/admin/requests/{id}/history` | Administrative history including private fields |
-| GET | `/WUN/v1/notifications` | Up to 100 notices belonging to the authenticated user |
+| GET | `/WUN/v1/notifications` | Paginated enriched notices belonging to the authenticated user |
 | POST | `/WUN/v1/notifications/read` | Mark only this user's notices read |
 
-Decision values: Pending=0, Approved=1, Deferred=2, Rejected=3. Availability values:
+Decision values: Pending=0, Approved=1, Deferred=2, Rejected=3, Completed=4, Canceled=5. Availability values:
 Unknown=0, Absent=1, Partial=2, Available=3. Availability is derived on demand from the visible catalog. Series/season presence
 is partial until complete episode coverage is verified. Decisions never imply that a file exists.
 
@@ -79,3 +79,15 @@ Search cards may include BackdropUrl, selected only from remote images explicitl
 marked Backdrop by the native provider. URLs are restricted to HTTPS image.tmdb.org
 and resized to w1280. No poster is substituted as a backdrop. Missing artwork does
 not imply missing catalog content.
+
+## Beta 3 workflow and administration
+
+- GET /WUN/v1/admin/requests: elevated general queue, optional start/limit/decision/sort.
+- GET /WUN/v1/requests/{id}: visible public projection, no requester identities or private notes.
+- GET /WUN/v1/admin/requests/{id}: elevated requester/supporter context and last manual decision.
+- PUT /WUN/v1/requests/{id}/support?enabled=true: unique support; revoked requests require confirmed reopening through creation.
+- POST /WUN/v1/requests accepts ConfirmReopen; otherwise a declined/canceled match returns 409 reopen_confirmation.
+- POST /WUN/v1/notifications/{id}/read: own notification only.
+- GET /WUN/v1/admin/metrics and GET /WUN/v1/admin/maintenance/preview: elevated metrics and non-mutating retention preview.
+
+Native plugin configuration page: configurationpage?name=wun. Scheduled tasks WUN.Availability and WUN.Cleanup own execution and scheduling. See maintenance.md for defaults and schema-3 migration.
