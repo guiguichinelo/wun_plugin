@@ -87,12 +87,12 @@ public sealed partial class RequestStore
         return new(requester, ids.ToArray(), created, AdminHistory(id).LastOrDefault(x=>x.Actor.HasValue));
     }
 
-    public WorkflowNotification[] WorkflowNotifications(Guid user, int start = 0, int limit = 30)
+    public WorkflowNotification[] WorkflowNotifications(Guid user, int start = 0, int limit = 30, bool? read = null)
     {
         ValidateUser(user);
         if (start < 0 || limit is < 1 or > 100) throw new ArgumentException("Invalid pagination.");
         using var connection = Open();
-        using var command = Command(connection, "SELECT id,request,event,seen,created,actor,message FROM notifications WHERE user=$0 ORDER BY id DESC LIMIT $1 OFFSET $2", user.ToString(), limit, start);
+        using var command = Command(connection, "SELECT id,request,event,seen,created,actor,message FROM notifications WHERE user=$0 AND ($3 IS NULL OR seen=$3) ORDER BY id DESC LIMIT $1 OFFSET $2", user.ToString(), limit, start, read);
         using var row = command.ExecuteReader(); var result = new List<WorkflowNotification>();
         while (row.Read()) result.Add(new(row.GetInt64(0), row.GetInt64(1), row.GetString(2), row.GetBoolean(3),
             row.IsDBNull(4) ? null : DateTimeOffset.Parse(row.GetString(4)), row.IsDBNull(5) ? null : Guid.Parse(row.GetString(5)), row.IsDBNull(6) ? "" : row.GetString(6)));

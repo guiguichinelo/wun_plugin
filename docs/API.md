@@ -91,3 +91,7 @@ not imply missing catalog content.
 - GET /WUN/v1/admin/metrics and GET /WUN/v1/admin/maintenance/preview: elevated metrics and non-mutating retention preview.
 
 Native plugin configuration page: configurationpage?name=wun. Scheduled tasks WUN.Availability and WUN.Cleanup own execution and scheduling. See maintenance.md for defaults and schema-3 migration.
+
+## Beta 4 notification filter
+
+GET /WUN/v1/notifications accepts optional read=true/false. Filtering is applied before pagination and remains scoped to the authenticated recipient. Omit read to retain the previous behavior. Schema remains 3.

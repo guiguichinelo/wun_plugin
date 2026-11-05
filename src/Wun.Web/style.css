@@ -101,6 +101,22 @@
 .wun .wun-type-check { display:flex; gap:.8em; align-items:center; padding:.65em .8em; cursor:pointer; font-size:1em; opacity:1; }
 .wun-type-check:hover { background:rgba(160,160,160,.12); border-radius:.2em; }
 .wun-type-check input { width:1.1em; height:1.1em; margin:0; accent-color:currentColor; }
+.wun .wun-type-check{width:100%;box-sizing:border-box;user-select:none}
+.wun .wun-type-check>span{flex:1;pointer-events:auto}
+.wun .wun-list-filters{max-width:none;flex-wrap:wrap;align-items:end}
+.wun .wun-list-filters>.wun-field{flex:0 1 20em}
+.wun .wun-list-filters>button{margin:0 0 .35em;display:inline-flex;align-items:center;gap:.45em}
+.wun .wun-list-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1em;flex-wrap:wrap;margin-bottom:1em}
+.wun .wun-notice-tabs{display:flex;gap:.5em;border-bottom:1px solid #8884}
+.wun .wun-notice-tabs button{border-radius:0;border-bottom:2px solid transparent;margin:0}
+.wun .wun-notice-tabs [aria-pressed=true]{border-bottom-color:var(--primary-accent-color,#00a4dc)}
+.wun .wun-review-panel{padding:.6em .8em;margin:1em 0 .4em;border:1px solid #8884;border-radius:var(--rounding,6px);background:color-mix(in srgb,currentColor 4%,transparent)}
+.wun .wun-review-actions{align-items:center;gap:.4em .75em;flex-wrap:wrap;padding:0}
+.wun .wun-decision-badge{display:inline-flex;align-items:center;gap:.45em;font-size:.9em;padding:.4em .2em;margin-inline-end:auto}
+.wun .wun-decision-badge .material-icons{font-size:1.2em;opacity:.8}
+.wun .wun-secondary-actions{gap:.25em .6em;flex-wrap:wrap;padding:.4em 0}
+.wun .wun-secondary-actions button{display:inline-flex;align-items:center;gap:.4em;margin:0}
+@media(max-width:40em){.wun .wun-decision-badge{flex-basis:100%}.wun .wun-review-panel{padding:.5em}.wun .wun-review-actions button{margin:0}}
 body.wun-surface-active .backdropContainer { opacity:1!important; }
 
 .wun-page-backdrop { position:absolute; inset:0; z-index:3; background-position:center 20%; background-size:cover; background-repeat:no-repeat; pointer-events:none; }

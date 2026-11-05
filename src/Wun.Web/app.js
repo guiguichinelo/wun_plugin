@@ -10,7 +10,12 @@
     Object.assign(words.en,{interest:'interested'});Object.assign(words.pt,{interest:'interessado'});
     Object.assign(words.en,{approved:'Awaiting availability',current:'Up to date',completed:'Completed',canceled:'Canceled'});
     Object.assign(words.pt,{approved:'Aguardando disponibilidade',current:'Em dia',completed:'Finalizado',canceled:'Cancelado'});
-    let root, owner, active=false, administrator=false, tab='mine', start=0, filter='', ticket=0, sortOrder='popular', pageSize=30;
+    Object.assign(words.en,{refresh:'Refresh',changeDecision:'Change decision',reopen:'Reopen',decisionSaved:'Decision saved.',unreadGroup:'Unread',readGroup:'Read'});
+    Object.assign(words.pt,{refresh:'Atualizar',changeDecision:'Alterar decis\u00e3o',reopen:'Reabrir',decisionSaved:'Decis\u00e3o salva.',unreadGroup:'N\u00e3o lidas',readGroup:'Lidas'});
+    let root, owner, active=false, administrator=false, tab='mine', start=0, filter='', ticket=0, sortOrder='popular', pageSize=30, noticeRead=false;
+    let listFilters={admin:'0',mine:''}, savedTitle=null;
+    function ownTitle(){if(savedTitle===null)savedTitle=document.title;if(document.title!==t('title'))document.title=t('title');}
+    function releaseTitle(){if(savedTitle!==null&&document.title===t('title'))document.title=savedTitle;savedTitle=null;}
     let searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};
     let backdropUrl='',backdropPending='',backdropTimer;
     const decisions=['pending','approved','deferred','rejected','completed','canceled'];
@@ -21,7 +26,7 @@
     function el(tag, attrs={}, children=[]) { const node=document.createElement(tag); for(const [key,value] of Object.entries(attrs)) { if(key==='class')node.className=value; else node.setAttribute(key,value); } for(const child of children)node.append(typeof child==='string'?document.createTextNode(child):child); return node; }
     function button(label, action) {
         const b=el('button',{type:'button',class:'emby-button button-flat'},[label]);
-        const icon=label===t('openCatalog')?'open_in_new':label===t('request')?'add':label===t('requestEpisodes')?'playlist_add':label===t('history')?'history':label===t('follow')?'notifications_none':null;
+        const icon=label===t('refresh')?'refresh':label===t('openCatalog')?'open_in_new':label===t('request')?'add':label===t('requestEpisodes')?'playlist_add':label===t('history')?'history':label===t('follow')?'notifications_none':null;
         if(icon)b.prepend(el('span',{class:'material-icons','aria-hidden':'true'},[icon]));
         b.addEventListener('click',action);return b;
     }
@@ -36,7 +41,7 @@
         const popup=el('div',{class:'wun-multiselect-options',role:'group','aria-label':t('kind'),hidden:''});
         const checks=[];
         function sync(){if(!selected.size)selected.add('All');const labels=options.filter(([key])=>selected.has(key)).map(([,label])=>label);text.textContent=labels.length>1?labels[0]+' +'+(labels.length-1):labels[0];trigger.title=labels.join(', ');wrap.dataset.value=[...selected].join(',');for(const [key,input]of checks)input.checked=selected.has(key);}
-        for(const [key,label]of options){const input=el('input',{type:'checkbox',value:key});checks.push([key,input]);input.addEventListener('change',()=>{if(key==='All'){selected.clear();selected.add('All');}else{selected.delete('All');if(input.checked)selected.add(key);else selected.delete(key);}sync();wrap.dispatchEvent(new Event('change',{bubbles:true}));});popup.append(el('label',{class:'wun-type-check'},[input,el('span',{},[label])]));}
+        for(const [key,label]of options){const input=el('input',{type:'checkbox',value:key});checks.push([key,input]);input.addEventListener('change',()=>{if(key==='All'){selected.clear();selected.add('All');}else{selected.delete('All');if(input.checked)selected.add(key);else selected.delete(key);}sync();wrap.dispatchEvent(new Event('change',{bubbles:true}));});const row=el('label',{class:'wun-type-check'},[input,el('span',{},[label])]);row.addEventListener('pointerdown',event=>{if(event.target!==input)event.preventDefault();});row.addEventListener('click',event=>{if(event.target!==input){event.preventDefault();input.focus();input.checked=!input.checked;input.dispatchEvent(new Event('change',{bubbles:true}));}});popup.append(row);}
         wrap.append(trigger,popup);Object.defineProperty(wrap,'value',{get:()=>[...selected].join(',')});
         wrap.addEventListener('keydown',e=>{
             if(e.key==='Escape'){popup.hidden=true;trigger.setAttribute('aria-expanded','false');trigger.focus();}
@@ -102,19 +107,23 @@
         if(tab==='search') {renderSearch(content);status('');return;}
         await run(async()=>{
             if(tab==='notices') {
-                const notices=await api('notifications?'+new URLSearchParams({start,limit:pageSize}));if(!live(id))return;
-                content.append(button(t('read'),()=>run(async()=>{await api('notifications/read','POST',{});await render();})));
+                const switches=el('div',{class:'wun-notice-tabs',role:'group','aria-label':t('notices')});
+                for(const read of [false,true]){const choice=button(t(read?'readGroup':'unreadGroup'),()=>{noticeRead=read;start=0;render();});choice.setAttribute('aria-pressed',String(noticeRead===read));switches.append(choice);}
+                const toolbar=el('div',{class:'wun-list-toolbar'},[switches,button(t('refresh'),()=>render())]);content.append(toolbar);
+                const notices=await api('notifications?'+new URLSearchParams({start,limit:pageSize,read:noticeRead}));if(!live(id))return;
+                if(!noticeRead&&notices.length)content.append(button(t('read'),()=>run(async()=>{await api('notifications/read','POST',{});await render();})));
                 for(const notice of notices)content.append(notificationRow(notice));
                 appendPager(content,notices.length===pageSize);
                 status(notices.length?'':t('empty'));return;
             }
+            filter=listFilters[tab]??'';
             const query=new URLSearchParams({start,limit:pageSize,sort:sortOrder});if(filter!=='')query.set('decision',filter);
             const result=await api((tab==='admin'?'admin/':'')+'requests?'+query);if(!live(id))return;
             const states=select([['',t('every')],...decisions.map((x,i)=>[String(i),t(x)])],filter);
-            states.addEventListener('change',()=>{filter=states.value;start=0;render();});
+            states.addEventListener('change',()=>{filter=listFilters[tab]=states.value;start=0;render();});
             const ordering=select([['popular',t('popular')],['newest',t('newest')],['oldest',t('oldest')]],sortOrder);
             ordering.addEventListener('change',()=>{sortOrder=ordering.value;start=0;render();});
-            content.append(el('div',{class:'wun-list-filters'},[field(t('decision'),states),field(t('sort'),ordering)]));
+            content.append(el('div',{class:'wun-list-filters'},[field(t('decision'),states),field(t('sort'),ordering),button(t('refresh'),()=>render())]));
             const rows=el('div',{class:'wun-rows'});for(const card of result.items)rows.append(requestRow(card));content.append(rows);
             appendPager(content,result.hasMore);
             if(!result.items.length){
@@ -164,7 +173,7 @@
     }
     function requestRow(card,manage=tab==='admin') {
         const s=card.selection, kind=typeof s.kind==='number'?s.kind:(s.kind==='Movie'?0:1);
-        const row=el('article',{class:'wun-row wun-request-card','data-request-id':card.id}),body=el('div',{class:'wun-request-body'},[titleNode(s.title,card.imdbId),requestMeta(card),el('p',{class:'wun-request-state'},[t(decisions[enumIndex(card.decision,decisions)])+' · '+t(availability[enumIndex(card.availability,availability)]||'unknown')])]);
+        const row=el('article',{class:'wun-row wun-request-card','data-request-id':card.id}),body=el('div',{class:'wun-request-body'},[titleNode(s.title,card.imdbId),requestMeta(card),el('p',{class:'wun-request-state'},[(manage?'':t(decisions[enumIndex(card.decision,decisions)])+' · ')+t(availability[enumIndex(card.availability,availability)]||'unknown')])]);
         body.append(el('p',{class:'wun-request-interest'},[String(card.supportCount||0)+' '+t(card.supportCount===1?'interest':'interests')+(card.ownRequest?' · '+t('own'):'')]));if(card.created)body.append(el('p',{class:'wun-request-date'},[dateText(card.created)]));
         if(manage){if(card.requester)body.append(el('div',{class:'wun-requester'},[el('span',{},[t('requester')+': ']),personNode(card.requester)]));else body.append(el('p',{class:'wun-legacy-owner'},[t(card.requesterKnown?'unknownUser':'unknownRequester')]));if(card.supporters?.length)body.append(el('div',{class:'wun-supporters'},[el('span',{},[t('supporters')+': ']),...card.supporters.map(personNode)]));}
         if(card.catalog?.obtained){body.append(presenceNode(card));const open=catalogButton(card);if(open)body.append(open);}
@@ -172,7 +181,16 @@
         const support=button(t(card.supporting?'supported':'support'),()=>run(async()=>{await toggleSupport(card.id,!card.supporting);await render();}));support.setAttribute('aria-pressed',String(!!card.supporting));support.prepend(el('span',{class:'material-icons','aria-hidden':'true'},['thumb_up']));
         const actions=el('div',{class:'wun-actions'},[support,...(manage?[]:[button(t(card.following?'unfollow':'follow'),()=>run(async()=>{await api('requests/'+card.id+'/follow?enabled='+!card.following,'PUT',{});await render();}))]),button(t('history'),()=>showHistory(card))]);
         actions.prepend(button(t('details'),()=>showDetails({kind:kind===0?'Movie':'Series',tmdbId:s.tmdbId,title:s.title,catalog:card.catalog,imdbId:card.imdbId,imageUrl:card.imageUrl})));
-        if(manage&&administrator){const approve=button(t('approve'),()=>edit(card,1));approve.className='emby-button button-submit';const review=el('div',{class:'wun-actions wun-review-actions'},[approve,button(t('reject'),()=>edit(card,3)),button(t('defer'),()=>edit(card,2))]);body.append(review);actions.append(button(t('respond'),()=>edit(card)));}body.append(actions);
+        actions.classList.add('wun-secondary-actions');
+        if(manage&&administrator){
+            const state=enumIndex(card.decision,decisions),review=el('div',{class:'wun-review-panel'});
+            const badge=el('span',{class:'wun-decision-badge'},[el('span',{class:'material-icons','aria-hidden':'true'},[state===0?'pending_actions':state===1?'schedule':state===3?'block':state===4?'check_circle':state===5?'cancel':'update']),t(decisions[state])]);
+            const primary=el('div',{class:'wun-actions wun-review-actions'},[badge]);
+            if(state===0||state===2){const approve=button(t('approve'),()=>edit(card,1));approve.className='emby-button button-submit';primary.append(approve,button(t('reject'),()=>edit(card,3)));if(state===0)primary.append(button(t('defer'),()=>edit(card,2)));}
+            else if(state===3||state===5)primary.append(button(t('reopen'),()=>edit(card,0)));
+            primary.append(button(t(state===0?'respond':'changeDecision'),()=>edit(card)));review.append(primary);body.append(review);
+        }
+        body.append(actions);
         row.append(coverNode(card),body);return row;
     }
     function renderSearch(content) {
@@ -309,11 +327,12 @@
         }
     }
     function request(card) {
+        const generation=ticket, actor=owner, scroll=window.scrollY;
         const season=el('input',{class:'emby-input',type:'number',min:'0',step:'1'}),episode=el('input',{class:'emby-input',type:'number',min:'1',step:'1'});
         season.value=card.season??'';episode.value=card.episode??'';
         dialog(card.title,card.kind==='Series'?[field(t('season'),season),field(t('episode'),episode)]:[],async()=>{
             if(!season.checkValidity()||!episode.checkValidity()||(episode.value&&!season.value)){season.reportValidity();throw new Error('invalid scope');}
-            const result=await createRequest({kind:card.kind,tmdbId:card.tmdbId,season:season.value?Number(season.value):null,episode:episode.value?Number(episode.value):null});tab='mine';start=0;await render();status(t(result.existingRequest?'supportedNotice':'createdNotice'));
+            const result=await createRequest({kind:card.kind,tmdbId:card.tmdbId,season:season.value?Number(season.value):null,episode:episode.value?Number(episode.value):null});if(!live(generation)||owner!==actor)return;for(const candidate of searchState.cards){if(candidate.kind===card.kind&&candidate.tmdbId===card.tmdbId&&card.season==null&&card.episode==null&&!season.value&&!episode.value){candidate.requestId=result.id;candidate.supporting=result.supporting;candidate.supportCount=result.supportCount;}}await render();if(owner===actor){requestAnimationFrame(()=>{if(live()&&owner===actor)window.scrollTo(0,scroll);});status(t(result.existingRequest?'supportedNotice':'createdNotice'));}
         });
     }
     async function edit(card,selected) {
@@ -321,18 +340,18 @@
         const decision=select(decisions.map((x,i)=>[String(i),t(x)]),String(selected??enumIndex(latest.decision,decisions)));
         const message=el('textarea',{class:'emby-input',maxlength:'2000'}),note=el('textarea',{class:'emby-input',maxlength:'4000'}),review=el('input',{class:'emby-input',type:'date'}),monitor=select([['true',t('yes')],['false',t('no')]],String(latest.monitor));
         message.value=latest.lastDecision?.public?.message||'';note.value=latest.lastDecision?.internalNote||'';review.value=latest.lastDecision?.reviewAt?.slice(0,10)||'';
-        const node=dialog(latest.selection.title,[field(t('decision'),decision),field(t('message'),message),field(t('note'),note),field(t('review'),review),field(t('monitor'),monitor)],async()=>{await api('admin/requests/'+latest.id,'PUT',{revision:latest.revision,decision:Number(decision.value),message:message.value,internalNote:note.value,reviewAt:review.value?review.value+'T12:00:00Z':null,monitor:monitor.value==='true'});await render();});
+        const node=dialog(latest.selection.title,[field(t('decision'),decision),field(t('message'),message),field(t('note'),note),field(t('review'),review),field(t('monitor'),monitor)],async()=>{await api('admin/requests/'+latest.id,'PUT',{revision:latest.revision,decision:Number(decision.value),message:message.value,internalNote:note.value,reviewAt:review.value?review.value+'T12:00:00Z':null,monitor:monitor.value==='true'});await render();status(t('decisionSaved'));});
         const submit=node.querySelector('.wun-actions button:last-child');const label=()=>{submit.textContent=t(Number(decision.value)===1?'approve':Number(decision.value)===3?'reject':Number(decision.value)===2?'defer':'save');};decision.addEventListener('change',label);label();});
     }
     async function showHistory(card) {const id=ticket;await run(async()=>{const entries=await api((administrator&&tab==='admin'?'admin/':'')+'requests/'+card.id+'/history');if(!live(id))return;const rows=entries.map(entry=>{const item=entry.public||entry;return el('article',{class:'wun-row'},[el('p',{},[new Intl.DateTimeFormat(document.documentElement.lang||'en',{dateStyle:'medium',timeStyle:'short'}).format(new Date(item.created))+' · '+t(decisions[enumIndex(item.decision,decisions)])]),el('p',{},[item.message||'']),...(entry.internalNote?[el('p',{},[t('note')+': '+entry.internalNote])]:[])]);});const node=el('dialog',{},[el('h2',{},[card.selection.title]),...rows,button(t('cancel'),()=>node.close())]);node.addEventListener('close',()=>node.remove(),{once:true});root.append(node);node.showModal();});}
     async function activate() {
-        if(!root?.isConnected){active=false;clearSurface();return;}
+        if(!root?.isConnected){active=false;clearSurface();releaseTitle();return;}
         const visible=routeActive()&&!!root.getClientRects().length,current=ApiClient.getCurrentUserId();
-        if(!visible||!current){if(active){active=false;ticket++;root.querySelectorAll('dialog').forEach(x=>x.remove());}clearSurface();return;}
-        if(active&&owner===current){paintSurface();return;}
+        if(!visible||!current){if(active){active=false;ticket++;root.querySelectorAll('dialog').forEach(x=>x.remove());}clearSurface();releaseTitle();return;}
+        if(active&&owner===current){paintSurface();ownTitle();return;}
         const changed=owner!==current;
-        if(changed){clearSurface();backdropUrl='';searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};tab='mine';start=0;filter='';}
-        active=true;owner=current;const activationTicket=++ticket;root.replaceChildren();paintSurface();initialBackdrop();
+        if(changed){clearSurface();backdropUrl='';searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};tab='mine';start=0;filter='';listFilters={admin:'0',mine:''};noticeRead=false;}
+        active=true;owner=current;ownTitle();const activationTicket=++ticket;root.replaceChildren();paintSurface();initialBackdrop();
         try{const me=await api('me');if(!live(activationTicket))return;administrator=me.administrator;pageSize=Math.max(10,Math.min(100,Number(me.pageSize)||30));if(changed){tab=administrator?'admin':'mine';sortOrder=administrator?(me.administratorOrder||'popular'):'newest';}if(tab==='admin'&&!administrator)tab='mine';await render();}
         catch{if(live(activationTicket))root.textContent=t('error');}
     }

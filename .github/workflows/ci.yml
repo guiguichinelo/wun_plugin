@@ -25,6 +25,7 @@ jobs:
       - run: google-chrome --version
       - run: python tests/page_smoke.py
       - run: python tests/workflow_smoke.py
+      - run: python tests/interaction_smoke.py
       - run: python tests/config_smoke.py
       - run: python tests/header_smoke.py
       - run: python tests/details_smoke.py
