@@ -31,6 +31,18 @@ with sync_playwright() as p:
  page.get_by_label('Decision',exact=True).select_option('1');page.locator('.wun-request-card').wait_for()
  assert page.get_by_role('button',name='Approve',exact=True).count()==0
  assert page.get_by_role('button',name='Change decision',exact=True).is_visible()
+ # A delayed refresh retains current controls/cards until its replacement is ready.
+ page.evaluate('''()=>{window.originalAjax=ApiClient.ajax;ApiClient.ajax=r=>{
+   if(r.type==='GET'&&r.url.includes('/requests?')&&!window.delayedOnce){window.delayedOnce=true;return new Promise(resolve=>window.releaseRefresh=()=>originalAjax(r).then(resolve));}
+   return originalAjax(r);
+ };window.originalFilter=document.querySelector('.wun-list-filters select');}''')
+ page.get_by_role('button',name='Refresh',exact=True).click()
+ page.wait_for_function('!!window.releaseRefresh')
+ assert page.locator('.wun-request-card').count()==1
+ assert page.evaluate('window.originalFilter===document.querySelector(".wun-list-filters select")')
+ page.evaluate('releaseRefresh()')
+ page.wait_for_function('window.originalFilter!==document.querySelector(".wun-list-filters select")')
+ page.evaluate('()=>{ApiClient.ajax=window.originalAjax;}')
  page.get_by_role('button',name='Refresh',exact=True).click();page.locator('.wun-request-card').wait_for()
  assert page.get_by_label('Decision',exact=True).input_value()=='1'
  page.get_by_role('button',name='Notifications',exact=True).click();page.locator('.wun-notice').wait_for()

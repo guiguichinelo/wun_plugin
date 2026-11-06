@@ -4,9 +4,14 @@ using Jellyfin.Data.Enums;
 namespace Jellyfin.Plugin.Wun;
 public sealed record CatalogPresence(bool Obtained,Guid? ItemId=null,int? EpisodeCount=null);
 public interface ICatalogLookup { CatalogPresence Find(Guid owner,string kind,IReadOnlyDictionary<string,string> ids,int? season=null,int? episode=null); }
-public sealed class CatalogLookup(ILibraryManager library,IUserManager users):ICatalogLookup
+public sealed class CatalogLookup(ILibraryManager library,IUserManager users,LocalReadCache? reads=null):ICatalogLookup
 {
  public CatalogPresence Find(Guid owner,string kind,IReadOnlyDictionary<string,string> ids,int? season=null,int? episode=null)
+ {
+  var key=kind+":"+season+":"+episode+":"+string.Join(";",ids.Where(x=>x.Key is "Tmdb" or "Imdb").OrderBy(x=>x.Key).Select(x=>x.Key+"="+x.Value));
+  return reads==null?FindCurrent(owner,kind,ids,season,episode):reads.Get(reads.Scope(owner),key,()=>FindCurrent(owner,kind,ids,season,episode));
+ }
+ CatalogPresence FindCurrent(Guid owner,string kind,IReadOnlyDictionary<string,string> ids,int? season,int? episode)
  {
   var user=users.GetUserById(owner)??throw new UnauthorizedAccessException();
   var keys=ids.Where(x=>x.Key is "Tmdb" or "Imdb").ToDictionary(x=>x.Key,x=>x.Value);

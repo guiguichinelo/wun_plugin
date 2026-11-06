@@ -22,29 +22,32 @@ public static class TitleCoverage
 
 // Uses the public TMDb client manager supplied by the installed Jellyfin provider.
 // No provider credentials or account-dependent catalog data enter this cache.
-public sealed class NativeSchedule(IServiceProvider services,IServerConfigurationManager config)
+public sealed class NativeSchedule(IServiceProvider services,IServerConfigurationManager config):IDisposable
 {
- private readonly MemoryCache cache=new(new MemoryCacheOptions{SizeLimit=200});
+ private readonly BoundedAsyncCache<object?> cache=new(200);
  private readonly SemaphoreSlim gate=new(3);
- public async Task<object?> Get(int id,int? season,CancellationToken ct,string kind="Series")
+ private Type? clientType;
+ public Task<object?> Get(int id,int? season,CancellationToken ct,string kind="Series")
  {
-  var key=$"{kind}:{id}:{season}:{config.Configuration.PreferredMetadataLanguage}";
-  if(cache.TryGetValue(key,out object? found))return found;
+  var language=config.Configuration.PreferredMetadataLanguage;var country=config.Configuration.MetadataCountryCode;
+  var key=$"{kind}:{id}:{season}:{language}:{country}";
+  return cache.Get(key,TimeSpan.FromMinutes(15),token=>Load(id,season,kind,language,country,token),ct);
+ }
+ private async Task<object?> Load(int id,int? season,string kind,string? language,string? country,CancellationToken ct)
+ {
   await gate.WaitAsync(ct);
   try{
-   if(cache.TryGetValue(key,out found))return found;
-   var type=AssemblyLoadContext.All.SelectMany(c=>c.Assemblies).SelectMany(a=>a.GetExportedTypes()).FirstOrDefault(t=>t.Name=="TmdbClientManager");
+   var type=clientType??=AssemblyLoadContext.All.SelectMany(c=>c.Assemblies).SelectMany(a=>a.GetExportedTypes()).FirstOrDefault(t=>t.Name=="TmdbClientManager");
    var client=type==null?null:services.GetService(type);if(client==null)return null;
    var method=type!.GetMethods().FirstOrDefault(m=>m.Name==(season.HasValue?"GetSeasonAsync":kind=="Movie"?"GetMovieAsync":"GetSeriesAsync")&&m.GetParameters().Length==(season.HasValue?6:5));
    if(method==null)return null;
    var args=new List<object?>{id};if(season.HasValue)args.Add(season.Value);
-   args.AddRange([config.Configuration.PreferredMetadataLanguage,null,config.Configuration.MetadataCountryCode,ct]);
+   args.AddRange([language,null,country,ct]);
    var task=(Task)method.Invoke(client,args.ToArray())!;await task;
-   found=task.GetType().GetProperty("Result")?.GetValue(task);
-   if(found!=null)cache.Set(key,found,new MemoryCacheEntryOptions{Size=1,AbsoluteExpirationRelativeToNow=TimeSpan.FromMinutes(15)});
-   return found;
+   return task.GetType().GetProperty("Result")?.GetValue(task);
   }finally{gate.Release();}
  }
+ public void Dispose(){cache.Dispose();gate.Dispose();}
  public static object? Prop(object? o,string name)=>o?.GetType().GetProperty(name)?.GetValue(o);
  public static int Num(object? o,string name)=>Convert.ToInt32(Prop(o,name)??0);
  public static object[] Rows(object? o,string name)=>(Prop(o,name) as IEnumerable)?.Cast<object>().ToArray()??[];

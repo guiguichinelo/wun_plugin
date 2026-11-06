@@ -95,6 +95,9 @@
     function status(text) {if(root?.isConnected)root.querySelector('.wun-status').textContent=text;}
     async function run(work) {const actor=owner;try{await work();}catch(error){let detail;try{detail=normalize(error.responseJSON||JSON.parse(error.responseText));}catch{}if(live()&&actor===owner)status(detail?.error&&['requests_paused','content_not_allowed','active_limit'].includes(detail.error)?t(detail.error):error?.status===409&&tab==='search'?t('catalogYes'):error?.status===409?t('conflict'):t('error'));}}
     function shell() {
+        const previous=root.querySelector('.wun-content');
+        if(previous&&root.dataset.wunTab===tab&&tab!=='search')return previous;
+        root.dataset.wunTab=tab;
         root.replaceChildren(el('h1',{},[t('title')]));
         const nav=el('nav',{'aria-label':t('title')});
         for(const value of [...(administrator?['admin']:[]),'mine','search','notices']) {const b=button(t(value),()=>{tab=value;start=0;render();});b.className='emby-button wun-tab';if(value===tab)b.setAttribute('aria-current','page');nav.append(b);}
@@ -104,13 +107,15 @@
     async function render() {
         if(!live())return;
         const id=++ticket, content=shell();status(t('loading'));
+        const clear=()=>{const message=content.querySelector('.wun-status');content.replaceChildren(...(message?[message]:[]));};
         if(tab==='search') {renderSearch(content);status('');return;}
+        content.setAttribute('aria-busy','true');
         await run(async()=>{
             if(tab==='notices') {
                 const switches=el('div',{class:'wun-notice-tabs',role:'group','aria-label':t('notices')});
                 for(const read of [false,true]){const choice=button(t(read?'readGroup':'unreadGroup'),()=>{noticeRead=read;start=0;render();});choice.setAttribute('aria-pressed',String(noticeRead===read));switches.append(choice);}
-                const toolbar=el('div',{class:'wun-list-toolbar'},[switches,button(t('refresh'),()=>render())]);content.append(toolbar);
-                const notices=await api('notifications?'+new URLSearchParams({start,limit:pageSize,read:noticeRead}));if(!live(id))return;
+                const toolbar=el('div',{class:'wun-list-toolbar'},[switches,button(t('refresh'),()=>render())]);
+                const notices=await api('notifications?'+new URLSearchParams({start,limit:pageSize,read:noticeRead}));if(!live(id))return;clear();content.append(toolbar);
                 if(!noticeRead&&notices.length)content.append(button(t('read'),()=>run(async()=>{await api('notifications/read','POST',{});await render();})));
                 for(const notice of notices)content.append(notificationRow(notice));
                 appendPager(content,notices.length===pageSize);
@@ -118,7 +123,7 @@
             }
             filter=listFilters[tab]??'';
             const query=new URLSearchParams({start,limit:pageSize,sort:sortOrder});if(filter!=='')query.set('decision',filter);
-            const result=await api((tab==='admin'?'admin/':'')+'requests?'+query);if(!live(id))return;
+            const result=await api((tab==='admin'?'admin/':'')+'requests?'+query);if(!live(id))return;clear();
             const states=select([['',t('every')],...decisions.map((x,i)=>[String(i),t(x)])],filter);
             states.addEventListener('change',()=>{filter=listFilters[tab]=states.value;start=0;render();});
             const ordering=select([['popular',t('popular')],['newest',t('newest')],['oldest',t('oldest')]],sortOrder);
@@ -131,7 +136,7 @@
                 content.append(el('div',{class:'wun-empty'},[el('span',{class:'material-icons','aria-hidden':'true'},['movie_filter']),el('h2',{},[t('empty')]),search]));
             }
             status('');
-        });
+        }).finally(()=>{if(live(id))content.removeAttribute('aria-busy');});
     }
     function appendPager(content,more){const previous=button(t('previous'),()=>{start=Math.max(0,start-pageSize);render();});previous.disabled=start===0;const next=button(t('next'),()=>{start+=pageSize;render();});next.disabled=!more;if(start>0||more)content.append(el('div',{class:'wun-pager'},[previous,t('page')+' '+(start/pageSize+1),next]));}
     function dateText(value){if(!value)return t('legacy');try{return new Intl.DateTimeFormat(document.documentElement.lang||'en',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value));}catch{return t('legacy');}}

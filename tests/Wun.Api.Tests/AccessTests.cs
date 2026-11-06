@@ -22,6 +22,7 @@ public sealed class FixtureAuth(IOptionsMonitor<AuthenticationSchemeOptions> opt
 }
 public sealed class FixtureAccess:IMetadataAccess,IUserAccess,ICatalogLookup
 {
+ public int ResolveCalls {get;private set;}
  public Guid Denied {get;set;}
  public bool Obtained {get;set;}
  public bool SpecificEpisodeObtained {get;set;}
@@ -30,7 +31,7 @@ public sealed class FixtureAccess:IMetadataAccess,IUserAccess,ICatalogLookup
  public int? LastSeason {get;private set;}
  public int? LastEpisode {get;private set;}
  public Task<SearchCard[]> Search(Guid id,string q,string k,CancellationToken ct,SearchFilters? filters=null)=>Task.FromResult(id==Denied?Array.Empty<SearchCard>():new[]{new SearchCard(k,"42","Verified title",2020)});
- public Task<BaseItem?> Resolve(Guid id,string kind,string tmdb,CancellationToken ct)=>Task.FromResult<BaseItem?>(id==Denied?null:new Movie{Name="Verified title"});
+ public Task<BaseItem?> Resolve(Guid id,string kind,string tmdb,CancellationToken ct){ResolveCalls++;return Task.FromResult<BaseItem?>(id==Denied?null:new Movie{Name="Verified title"});}
  public CatalogPresence Find(Guid owner,string kind,IReadOnlyDictionary<string,string> ids,int? season=null,int? episode=null){LastCatalogOwner=owner;LastSeason=season;LastEpisode=episode;var obtained=Obtained&&owner!=Denied&&owner!=CatalogDenied&&(episode==null||SpecificEpisodeObtained);return new(obtained,obtained?Guid.Parse("12345678-1234-1234-1234-123456789abc"):null);}
  public HashSet<Guid> AdministratorUsers {get;}=[];
  public bool Administrator(Guid id)=>AdministratorUsers.Contains(id);

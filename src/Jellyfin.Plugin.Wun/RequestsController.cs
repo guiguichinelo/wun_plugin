@@ -10,6 +10,7 @@ public sealed record DecideBody(long Revision,Decision Decision,string Message="
 [ApiController][Authorize][ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)][Route("WUN/v1")]
 public sealed class RequestsController(RequestStore store,IMetadataAccess metadata,IUserAccess users,ICatalogLookup catalog,MaintenanceRunner? maintenance=null):ControllerBase
 {
+ readonly Dictionary<(long Id,bool Administrative),Task<RequestView?>> presentations=new();
  Guid Owner=>Guid.TryParse(User.FindFirst("Jellyfin-UserId")?.Value,out var id)&&id!=Guid.Empty?id:throw new UnauthorizedAccessException();
  [HttpGet("me")]public object Me()=>new{Administrator=users.Administrator(Owner),PageSize=Plugin.Instance?.Configuration.PageSize??30,AdministratorOrder=Plugin.Instance?.Configuration.AdministratorOrder??"popular"};
  [Authorize(Policy=Policies.RequiresElevation)][HttpGet("admin/metrics")]public IActionResult Metrics()=>Ok(store.Metrics());
@@ -31,7 +32,13 @@ if((existing==null||existing.Decision is Decision.Rejected or Decision.Canceled&
 if(existing?.Decision is Decision.Rejected or Decision.Canceled){if(!body.ConfirmReopen)return Conflict(new{Error="reopen_confirmation",Message=store.History(existing.Id).LastOrDefault()?.Message});store.Transition(existing.Id,existing.Revision,Decision.Pending,"Request reopened by confirmed user interest.",users.Administrators());}
 
 var existed=store.FindSelection(selection)!=null;var card=store.Create(Owner,selection,users.Administrators());if(!settings.FollowByDefault&&existing==null)store.Follow(card.Id,Owner,false);var result=await Present(card,false,ct);return Ok(result! with{ExistingRequest=existed});}
- async Task<RequestView?> Present(RequestCard card,bool administrative,CancellationToken ct)
+ Task<RequestView?> Present(RequestCard card,bool administrative,CancellationToken ct)
+ {
+  var key=(card.Id,administrative);
+  if(!presentations.TryGetValue(key,out var task))presentations[key]=task=PresentCurrent(card,administrative,ct);
+  return task;
+ }
+ async Task<RequestView?> PresentCurrent(RequestCard card,bool administrative,CancellationToken ct)
  {
   var item=await metadata.Resolve(Owner,card.Selection.Kind.ToString(),card.Selection.TmdbId,ct);if(item==null)return null;
   var presence=catalog.Find(Owner,card.Selection.Kind.ToString(),item.ProviderIds,card.Selection.Season,card.Selection.Episode);
@@ -51,7 +58,7 @@ var existed=store.FindSelection(selection)!=null;var card=store.Create(Owner,sel
  [HttpGet("requests/{id:long}/history")]public async Task<IActionResult> History(long id,CancellationToken ct){if(!await Visible(id,ct))return NotFound();return Ok(store.History(id));}
  [Authorize(Policy=Policies.RequiresElevation)][HttpGet("admin/requests/{id:long}/history")]public IActionResult AdminHistory(long id)=>Ok(store.AdminHistory(id));
  [Authorize(Policy=Policies.RequiresElevation)][HttpPut("admin/requests/{id:long}")]public IActionResult Decide(long id,DecideBody body){try{store.Decide(id,body.Revision,Owner,body.Decision,body.Message,body.InternalNote,body.ReviewAt,body.Monitor);return Ok(new{Saved=true});}catch(ArgumentException){return BadRequest();}catch(RevisionConflictException){return Conflict(new{error="revision_conflict"});}}
- [HttpGet("notifications")]public async Task<IActionResult> Notifications(int start=0,int limit=30,bool? read=null,CancellationToken ct=default){if(start<0||limit<1||limit>100)return BadRequest();var result=new List<object>();foreach(var n in store.WorkflowNotifications(Owner,start,limit,read)){if(!await Visible(n.RequestId,ct))continue;var card=await Present(store.Get(n.RequestId),false,ct);result.Add(new{n.Id,n.RequestId,n.Event,n.Read,n.Created,n.Message,Request=card,Actor=users.Administrator(Owner)&&n.Actor.HasValue?users.Summary(n.Actor.Value):null});}return Ok(result);}
+ [HttpGet("notifications")]public async Task<IActionResult> Notifications(int start=0,int limit=30,bool? read=null,CancellationToken ct=default){if(start<0||limit<1||limit>100)return BadRequest();var result=new List<object>();foreach(var n in store.WorkflowNotifications(Owner,start,limit,read)){var card=await Present(store.Get(n.RequestId),false,ct);if(card==null)continue;result.Add(new{n.Id,n.RequestId,n.Event,n.Read,n.Created,n.Message,Request=card,Actor=users.Administrator(Owner)&&n.Actor.HasValue?users.Summary(n.Actor.Value):null});}return Ok(result);}
  [HttpPost("notifications/{id:long}/read")]public IActionResult ReadOne(long id)=>store.MarkNotificationRead(Owner,id)?Ok(new{Read=true}):NotFound();
  [HttpPost("notifications/read")]public IActionResult Read(){store.MarkNotificationsRead(Owner);return Ok(new{Read=true});}
 }

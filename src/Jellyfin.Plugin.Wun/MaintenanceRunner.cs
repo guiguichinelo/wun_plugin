@@ -9,7 +9,7 @@ using Wun.Core;
 namespace Jellyfin.Plugin.Wun;
 
 public sealed record CoverageObservation(bool Known,bool Complete,bool Current,DateTime? Missing);
-public sealed class MaintenanceRunner(RequestStore store,ILibraryManager library,NativeSchedule schedule,IUserManager users)
+public sealed class MaintenanceRunner(RequestStore store,ILibraryManager library,NativeSchedule schedule,IUserManager users,LocalReadCache? reads=null)
 {
  readonly SemaphoreSlim gate=new(1);
  public Retention Policy {get{var c=Plugin.Instance?.Configuration??new();return new(Math.Max(0,c.CompletedDays),Math.Max(0,c.CanceledDays),Math.Max(0,c.ReadDays));}}
@@ -24,6 +24,12 @@ public sealed class MaintenanceRunner(RequestStore store,ILibraryManager library
   }finally{gate.Release();}
  }
  public async Task<CoverageObservation> Inspect(RequestCard card,CancellationToken ct,Guid? owner=null)
+ {
+  // Maintenance must always inspect current data; only interactive, user-scoped reads are cached.
+  if(owner.HasValue&&reads!=null)return await reads.Coverage(owner.Value,card.Selection.Identity+":"+card.Monitor,token=>InspectCurrent(card,token,owner),ct);
+  return await InspectCurrent(card,ct,owner);
+ }
+ async Task<CoverageObservation> InspectCurrent(RequestCard card,CancellationToken ct,Guid? owner)
  {
   var user=owner.HasValue?(users.GetUserById(owner.Value)??throw new UnauthorizedAccessException()):null;
   var s=card.Selection;var series=s.Kind==MediaKind.Series;
