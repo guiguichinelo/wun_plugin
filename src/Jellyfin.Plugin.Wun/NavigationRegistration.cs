@@ -26,7 +26,7 @@ public sealed class NavigationRegistration(ILogger<NavigationRegistration> log, 
  public static string TransformIndex(NavigationPayload payload)
  {
   var html=payload.Contents??"";if(html.Contains("data-wun-navigation-script"))return html;
-  return html.Replace("</body>","<script data-wun-navigation-script src=\"../WUN/web/header.js?v=0.1.0-beta.4\" defer></script></body>",StringComparison.OrdinalIgnoreCase);
+  return html.Replace("</body>","<script data-wun-navigation-script src=\"../WUN/web/header.js?v=0.1.0-beta.6\" defer></script></body>",StringComparison.OrdinalIgnoreCase);
  }
  private void OnTaskCompleted(object? sender, TaskCompletionEventArgs args)
  {

@@ -12,8 +12,10 @@
     Object.assign(words.pt,{approved:'Aguardando disponibilidade',current:'Em dia',completed:'Finalizado',canceled:'Cancelado'});
     Object.assign(words.en,{refresh:'Refresh',changeDecision:'Change decision',reopen:'Reopen',decisionSaved:'Decision saved.',unreadGroup:'Unread',readGroup:'Read'});
     Object.assign(words.pt,{refresh:'Atualizar',changeDecision:'Alterar decis\u00e3o',reopen:'Reabrir',decisionSaved:'Decis\u00e3o salva.',unreadGroup:'N\u00e3o lidas',readGroup:'Lidas'});
+    Object.assign(words.en,{episodeHere:'episode in the catalog',openEpisode:'Open episode',shownRequests:'requests shown',availableRequests:'available',finishedRequests:'completed'});
+    Object.assign(words.pt,{episodeHere:'episódio no catálogo',openEpisode:'Abrir episódio',shownRequests:'pedidos exibidos',availableRequests:'disponíveis',finishedRequests:'finalizados'});
     let root, owner, active=false, administrator=false, tab='mine', start=0, filter='', ticket=0, sortOrder='popular', pageSize=30, noticeRead=false;
-    let listFilters={admin:'0',mine:''}, savedTitle=null;
+    let listFilters={admin:'',mine:''}, savedTitle=null;
     function ownTitle(){if(savedTitle===null)savedTitle=document.title;if(document.title!==t('title'))document.title=t('title');}
     function releaseTitle(){if(savedTitle!==null&&document.title===t('title'))document.title=savedTitle;savedTitle=null;}
     let searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};
@@ -129,7 +131,7 @@
             const ordering=select([['popular',t('popular')],['newest',t('newest')],['oldest',t('oldest')]],sortOrder);
             ordering.addEventListener('change',()=>{sortOrder=ordering.value;start=0;render();});
             content.append(el('div',{class:'wun-list-filters'},[field(t('decision'),states),field(t('sort'),ordering),button(t('refresh'),()=>render())]));
-            const rows=el('div',{class:'wun-rows'});for(const card of result.items)rows.append(requestRow(card));content.append(rows);
+            const rows=el('div',{class:'wun-rows'});appendRequestGroups(rows,result.items);content.append(rows);
             appendPager(content,result.hasMore);
             if(!result.items.length){
                 const search=button(t('search'),()=>{tab='search';start=0;render();});search.className='emby-button button-flat';
@@ -168,17 +170,26 @@
         const present=card.catalog?.obtained===true;
         const series=card.kind==='Series'||card.selection?.kind===1||card.selection?.kind==='Series';
         if(!present)return el('p',{class:'wun-presence'},[t('catalogNo')]);
-        const complete=card.catalog?.complete===true;
-        const label=complete?(/^pt\b/i.test(document.documentElement.lang)?'Completa no catálogo':'Complete in library'):series&&card.catalog.episodeCount!=null?String(card.catalog.episodeCount)+' '+t('episodesHere'):t('availableHere');
+        const complete=card.catalog?.complete===true||enumIndex(card.availability,availability)===3;
+        const requestedEpisode=card.selection?.episode!=null;
+        const label=requestedEpisode?('T'+String(card.selection.season).padStart(2,'0')+'E'+String(card.selection.episode).padStart(2,'0')+' \u00b7 '+t('availableHere')):complete?(/^pt\b/i.test(document.documentElement.lang)?'Completa no catálogo':'Complete in library'):series&&card.catalog.episodeCount!=null?String(card.catalog.episodeCount)+' '+t(card.catalog.episodeCount===1?'episodeHere':'episodesHere'):t('availableHere');
         return el('p',{class:'wun-presence'},[el('span',{class:'wun-presence-badge'+(series&&!complete?' wun-presence-partial':'')},[el('span',{class:'material-icons','aria-hidden':'true'},[series&&!complete?'video_library':'check_circle']),label])]);
     }
     function catalogButton(card) {
-        const id=card.catalog?.itemId;
-        return /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(id||'')?button(t('openCatalog'),()=>{location.hash='/details?id='+encodeURIComponent(id);}):null;
+        const id=card.catalog?.episodeItemId||card.catalog?.itemId;
+        return /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(id||'')?button(t(card.catalog?.episodeItemId?'openEpisode':'openCatalog'),()=>{location.hash='/details?id='+encodeURIComponent(id);}):null;
     }
-    function requestRow(card,manage=tab==='admin') {
+    function appendRequestGroups(rows,cards){
+        const groups=new Map();for(const card of cards){const s=card.selection,key=enumIndex(s.kind,['movie','series'])===1&&s.season!=null?s.tmdbId+':'+s.season:'request:'+card.id;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(card);}
+        for(const group of groups.values()){
+            if(group.length===1){rows.append(requestRow(group[0]));continue;}
+            const first=group[0],s=first.selection,section=el('section',{class:'wun-request-group'}),heading=el('div',{class:'wun-request-group-heading'});
+            const info=el('div',{},[titleNode(s.title,first.imdbId),el('p',{},[t('seasonLabel')+' '+s.season+' \u00b7 '+group.length+' '+t('shownRequests')+' \u00b7 '+group.filter(c=>enumIndex(c.availability,availability)===3).length+' '+t('availableRequests')+' \u00b7 '+group.filter(c=>enumIndex(c.decision,decisions)===4).length+' '+t('finishedRequests')])]);heading.append(coverNode(first),info);section.append(heading);for(const card of group)section.append(requestRow(card,tab==='admin',true));rows.append(section);
+        }
+    }
+    function requestRow(card,manage=tab==='admin',grouped=false) {
         const s=card.selection, kind=typeof s.kind==='number'?s.kind:(s.kind==='Movie'?0:1);
-        const row=el('article',{class:'wun-row wun-request-card','data-request-id':card.id}),body=el('div',{class:'wun-request-body'},[titleNode(s.title,card.imdbId),requestMeta(card),el('p',{class:'wun-request-state'},[(manage?'':t(decisions[enumIndex(card.decision,decisions)])+' · ')+t(availability[enumIndex(card.availability,availability)]||'unknown')])]);
+        const row=el('article',{class:'wun-row wun-request-card','data-request-id':card.id}),body=el('div',{class:'wun-request-body'},[titleNode(grouped&&s.episode!=null?'T'+String(s.season).padStart(2,'0')+'E'+String(s.episode).padStart(2,'0'):s.title,card.imdbId),...(grouped?[]:[requestMeta(card)]),el('p',{class:'wun-request-state'},[(manage?'':t(decisions[enumIndex(card.decision,decisions)])+' · ')+t(availability[enumIndex(card.availability,availability)]||'unknown')])]);
         body.append(el('p',{class:'wun-request-interest'},[String(card.supportCount||0)+' '+t(card.supportCount===1?'interest':'interests')+(card.ownRequest?' · '+t('own'):'')]));if(card.created)body.append(el('p',{class:'wun-request-date'},[dateText(card.created)]));
         if(manage){if(card.requester)body.append(el('div',{class:'wun-requester'},[el('span',{},[t('requester')+': ']),personNode(card.requester)]));else body.append(el('p',{class:'wun-legacy-owner'},[t(card.requesterKnown?'unknownUser':'unknownRequester')]));if(card.supporters?.length)body.append(el('div',{class:'wun-supporters'},[el('span',{},[t('supporters')+': ']),...card.supporters.map(personNode)]));}
         if(card.catalog?.obtained){body.append(presenceNode(card));const open=catalogButton(card);if(open)body.append(open);}
@@ -355,12 +366,17 @@
         if(!visible||!current){if(active){active=false;ticket++;root.querySelectorAll('dialog').forEach(x=>x.remove());}clearSurface();releaseTitle();return;}
         if(active&&owner===current){paintSurface();ownTitle();return;}
         const changed=owner!==current;
-        if(changed){clearSurface();backdropUrl='';searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};tab='mine';start=0;filter='';listFilters={admin:'0',mine:''};noticeRead=false;}
+        if(changed){clearSurface();backdropUrl='';searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};tab='mine';start=0;filter='';listFilters={admin:'',mine:''};noticeRead=false;}
         active=true;owner=current;ownTitle();const activationTicket=++ticket;root.replaceChildren();paintSurface();initialBackdrop();
         try{const me=await api('me');if(!live(activationTicket))return;administrator=me.administrator;pageSize=Math.max(10,Math.min(100,Number(me.pageSize)||30));if(changed){tab=administrator?'admin':'mine';sortOrder=administrator?(me.administratorOrder||'popular'):'newest';}if(tab==='admin'&&!administrator)tab='mine';await render();}
         catch{if(live(activationTicket))root.textContent=t('error');}
     }
 
+    setInterval(()=>{
+        if(!live()||document.hidden||!['admin','mine'].includes(tab)||root.querySelector('dialog[open],.wun-content[aria-busy="true"]'))return;
+        if(root.contains(document.activeElement)&&['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName))return;
+        render();
+    },30000);
     let scheduled=false;new MutationObserver(()=>{if(!scheduled){scheduled=true;requestAnimationFrame(()=>{scheduled=false;activate();});}}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
     window.WunUI={mount(node){if(root!==node){active=false;ticket++;root=node;}activate();}};
 })();

@@ -50,7 +50,7 @@ public sealed class Registrator:IPluginServiceRegistrator
  public void RegisterServices(IServiceCollection services,IServerApplicationHost host)
  {
   services.AddSingleton<RequestStore>(sp=>new(Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath,"wun","wun.db")));
-  services.AddSingleton<LocalReadCache>();services.AddSingleton<MaintenanceRunner>();services.AddSingleton<MediaBrowser.Model.Tasks.IScheduledTask,AvailabilityTask>();services.AddSingleton<MediaBrowser.Model.Tasks.IScheduledTask,CleanupTask>();
+  services.AddSingleton<AvailabilitySignal>();services.AddHostedService<AvailabilityWorker>();services.AddSingleton<LocalReadCache>();services.AddSingleton<MaintenanceRunner>();services.AddSingleton<MediaBrowser.Model.Tasks.IScheduledTask,AvailabilityTask>();services.AddSingleton<MediaBrowser.Model.Tasks.IScheduledTask,CleanupTask>();
   services.AddSingleton<NativeSchedule>();services.AddSingleton<ICatalogLookup,CatalogLookup>();services.AddSingleton<IMetadataAccess,MetadataAccess>();services.AddSingleton<IUserAccess,UserAccess>();services.AddHostedService<PageRegistration>();services.AddHostedService<NavigationRegistration>();
  }
 }

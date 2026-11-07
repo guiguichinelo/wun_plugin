@@ -13,13 +13,13 @@ public sealed class MaintenanceRunner(RequestStore store,ILibraryManager library
 {
  readonly SemaphoreSlim gate=new(1);
  public Retention Policy {get{var c=Plugin.Instance?.Configuration??new();return new(Math.Max(0,c.CompletedDays),Math.Max(0,c.CanceledDays),Math.Max(0,c.ReadDays));}}
- public async Task Run(bool cleanup,IProgress<double> progress,CancellationToken ct)
+ public async Task Run(bool cleanup,IProgress<double> progress,CancellationToken ct,bool availabilityOnly=false)
  {
   if(!await gate.WaitAsync(0,ct))throw new InvalidOperationException("WUN maintenance already running.");
   try{
    if(cleanup){ct.ThrowIfCancellationRequested();store.Cleanup(Policy,true,ct);progress.Report(100);return;}
    var cards=store.All();var done=0;var failures=0;
-   foreach(var card in cards){ct.ThrowIfCancellationRequested();try{await Update(card,ct);}catch(OperationCanceledException){throw;}catch(RevisionConflictException){}catch{failures++;}progress.Report(++done*100d/Math.Max(1,cards.Length));}
+   foreach(var card in cards){ct.ThrowIfCancellationRequested();try{await Update(card,ct,availabilityOnly);}catch(OperationCanceledException){throw;}catch(RevisionConflictException){}catch{failures++;}progress.Report(++done*100d/Math.Max(1,cards.Length));}
    if(failures>0)throw new InvalidOperationException($"WUN: {failures} requests could not be checked; their states were preserved.");
   }finally{gate.Release();}
  }
@@ -58,11 +58,12 @@ public sealed class MaintenanceRunner(RequestStore store,ILibraryManager library
   if(complete)return new(true,true,true,null);
   return new(known,complete,current,missing);
  }
- async Task Update(RequestCard card,CancellationToken ct)
+ async Task Update(RequestCard card,CancellationToken ct,bool availabilityOnly)
  {
-  if(card.Decision==Decision.Completed)return;
+  if(card.Decision is Decision.Completed or Decision.Rejected or Decision.Canceled)return;
   var observed=await Inspect(card,ct);var known=observed.Known;var missing=observed.Missing;
   if(observed.Complete){store.Transition(card.Id,card.Revision,Decision.Completed,"Requested content is available in the catalog.");return;}
+  if(availabilityOnly)return;
   if(!known||card.Decision is not(Decision.Approved or Decision.Deferred))return;
   var config=Plugin.Instance?.Configuration??new();
   var reason=RequestStore.ExpirationReason(card,known,store.ApprovedAt(card.Id),missing.HasValue?new DateTimeOffset(missing.Value):null,config.ApprovalDays,config.MissingReleaseDays,DateTimeOffset.UtcNow);

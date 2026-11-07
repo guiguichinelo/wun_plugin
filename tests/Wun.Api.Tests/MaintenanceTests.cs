@@ -37,17 +37,17 @@ public sealed partial class AccessTests
   Assert.Null(RequestStore.ExpirationReason(card,known,null,null,approvalDays,missingDays,now));
   Assert.Null(RequestStore.ExpirationReason(card with{Decision=Decision.Completed},true,now.AddDays(-1000),now.AddDays(-1000),30,30,now));
  }
- [Fact] public async Task AvailabilityFinalizesEvenRejectedOrCanceledAndDoesNotRepeatNotifications()
+ [Fact] public async Task AvailabilityPreservesTerminalDecisionsAndDoesNotRepeatNotifications()
  {
   var library=DispatchProxy.Create<ILibraryManager,LibraryFixtureProxy>();
   var runner=new MaintenanceRunner(store,library,null!,null!);
-  foreach(var state in new[]{Decision.Pending,Decision.Rejected,Decision.Canceled})
+  foreach(var state in new[]{Decision.Pending,Decision.Approved,Decision.Deferred,Decision.Rejected,Decision.Canceled})
   {
    var card=store.Create(user,new(MediaKind.Movie,((int)state+100).ToString(),"Fixture"),[]);
    if(state!=Decision.Pending)store.Transition(card.Id,card.Revision,state,"Fixture transition");
   }
   await runner.Run(false,new Progress<double>(),default);
-  Assert.All(store.All(),c=>Assert.Equal(Decision.Completed,c.Decision));
+  Assert.All(store.All().Take(3),c=>Assert.Equal(Decision.Completed,c.Decision));Assert.Equal(Decision.Rejected,store.All()[3].Decision);Assert.Equal(Decision.Canceled,store.All()[4].Decision);
   var count=store.Notifications(user).Length;
   await runner.Run(false,new Progress<double>(),default);Assert.Equal(count,store.Notifications(user).Length);
  }

@@ -2,7 +2,7 @@ using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Entities;
 using Jellyfin.Data.Enums;
 namespace Jellyfin.Plugin.Wun;
-public sealed record CatalogPresence(bool Obtained,Guid? ItemId=null,int? EpisodeCount=null);
+public sealed record CatalogPresence(bool Obtained,Guid? ItemId=null,int? EpisodeCount=null,Guid? EpisodeItemId=null);
 public interface ICatalogLookup { CatalogPresence Find(Guid owner,string kind,IReadOnlyDictionary<string,string> ids,int? season=null,int? episode=null); }
 public sealed class CatalogLookup(ILibraryManager library,IUserManager users,LocalReadCache? reads=null):ICatalogLookup
 {
@@ -20,8 +20,11 @@ public sealed class CatalogLookup(ILibraryManager library,IUserManager users,Loc
   foreach(var item in candidates){
    if(!item.IsVisibleStandalone(user))continue;
    if(kind=="Movie"){if(!string.IsNullOrWhiteSpace(item.Path))return new(true,item.Id);continue;}
-   var episodes=library.GetItemsResult(new InternalItemsQuery{User=user,Recursive=true,AncestorIds=[item.Id],IncludeItemTypes=[BaseItemKind.Episode],IsVirtualItem=false,EnableTotalRecordCount=true,Limit=1,ParentIndexNumber=season,IndexNumber=episode});
-   if(episodes.TotalRecordCount>0)return new(true,item.Id,episodes.TotalRecordCount);
+   var episodes=library.GetItemsResult(new InternalItemsQuery{User=user,Recursive=true,AncestorIds=[item.Id],IncludeItemTypes=[BaseItemKind.Episode],IsVirtualItem=false,EnableTotalRecordCount=true,ParentIndexNumber=season});
+   var owned=episodes.Items.Where(e=>e.IsVisibleStandalone(user)&&!string.IsNullOrWhiteSpace(e.Path));
+   if(episode.HasValue){var match=owned.FirstOrDefault(e=>e.IndexNumber.HasValue&&e.IndexNumber<=episode&&((e as MediaBrowser.Controller.Entities.TV.Episode)?.IndexNumberEnd??e.IndexNumber)>=episode);if(match!=null)return new(true,item.Id,1,match.Id);}
+   else {var count=owned.SelectMany(e=>e.IndexNumber.HasValue?Enumerable.Range(e.IndexNumber.Value,Math.Clamp(((e as MediaBrowser.Controller.Entities.TV.Episode)?.IndexNumberEnd??e.IndexNumber.Value)-e.IndexNumber.Value+1,1,101)).Select(n=>(e.ParentIndexNumber,n)):[]).Distinct().Count();if(count>0)return new(true,item.Id,count);}
+
   }
   return new(false);
  }

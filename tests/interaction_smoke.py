@@ -25,7 +25,8 @@ with sync_playwright() as p:
   }}; }''')
  page.add_script_tag(path=str(root/'src/Wun.Web/app.js'));page.evaluate('WunUI.mount(document.querySelector("#wun-app"))')
  page.wait_for_function('document.title==="Requests"');page.locator('.wun-request-card').wait_for()
- assert page.get_by_label('Decision',exact=True).input_value()=='0'
+ assert page.get_by_label('Decision',exact=True).input_value()==''
+ page.get_by_label('Decision',exact=True).select_option('0')
  page.get_by_role('button',name='Approve',exact=True).click();page.locator('dialog').get_by_role('button',name='Approve',exact=True).click()
  page.wait_for_function('window.state===1&&document.querySelectorAll(".wun-request-card").length===0')
  page.get_by_label('Decision',exact=True).select_option('1');page.locator('.wun-request-card').wait_for()
@@ -64,4 +65,4 @@ with sync_playwright() as p:
  assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
  assert not errors,errors
  browser.close()
-print('PASS: title lifecycle, pending default, decision actions, refresh filters, read groups, full-row type click and search continuity')
+print('PASS: title lifecycle, all-status default and explicit pending filter, decision actions, refresh filters, read groups, full-row type click and search continuity')

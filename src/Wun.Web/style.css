@@ -213,3 +213,23 @@ body.wun-surface-active .wun>nav{border-bottom:0;margin-bottom:0;gap:1.8em}
 .wun .wun-season-option:hover{background:rgba(var(--accent,98,121,205),.2)}.wun-season-option>span{display:flex;flex-direction:column;gap:.4em}.wun-season-option strong{font-size:.9em;font-weight:500}.wun-season-option>span>span{font-size:.8em;opacity:.65}.wun-season-cover{width:44px}
 .wun-season-option:focus-visible{outline:2px solid rgb(var(--accent,98,121,205));outline-offset:2px}
 @media(max-width:40em){.wun .wun-details-heading{padding:1em;gap:.8em}.wun-title-cover{width:56px}.wun-details-content{padding:1em}.wun .wun-details-title h2{font-size:1.2em}.wun .wun-details-close{width:30px;height:30px}}
+
+/* Group presentation preserves each request and its actions. */
+.wun-request-group{margin-block:1em;border:1px solid var(--theme-primary-color,rgba(128,128,128,.3));border-radius:.6em;padding:1em}
+.wun-request-group-heading{display:flex;align-items:center;gap:1em;margin-bottom:1em}
+.wun-request-group-heading h2{margin:.15em 0}.wun-request-group-heading p{margin:.3em 0;opacity:.8}
+.wun-request-group>.wun-row{margin-block:.6em}.wun-request-group>.wun-row>.wun-request-cover{display:none}
+.wun .wun-request-group>.wun-request-card{grid-template-columns:minmax(0,1fr)}
+.wun .wun-request-group>.wun-request-card>.wun-request-body{grid-column:1/-1}
+.wun .wun-request-group .wun-request-body{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:1.2em;align-items:start}
+.wun .wun-request-group .wun-request-body>*{grid-column:1;min-width:0}
+.wun .wun-request-group .wun-request-body>h2{margin:.2em 0}
+.wun .wun-request-group .wun-request-body>p{margin:.2em 0}
+.wun .wun-request-group .wun-request-body>.wun-request-state{display:none}
+.wun .wun-request-group .wun-request-body>.wun-requester{margin:.3em 0}
+.wun .wun-request-group .wun-request-body>button{justify-self:start;margin:.3em 0}
+.wun .wun-request-group .wun-request-body>.wun-review-panel{grid-column:2;grid-row:1/span 5;margin:0;padding:.5em .8em;max-width:24em}
+.wun .wun-request-group .wun-review-panel .wun-review-actions{margin:0}
+.wun .wun-request-group .wun-request-body>.wun-secondary-actions{grid-column:1/-1;margin:.35em 0 0}
+@media(max-width:600px){.wun .wun-request-group .wun-request-body{grid-template-columns:minmax(0,1fr)}.wun .wun-request-group .wun-request-body>.wun-review-panel{grid-column:1;grid-row:auto;justify-self:start;margin-top:.3em}}
+@media(max-width:600px){.wun-request-group{padding:.6em}.wun-request-group-heading{align-items:flex-start}}
