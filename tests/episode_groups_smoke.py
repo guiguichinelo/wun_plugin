@@ -1,9 +1,10 @@
 """Episode requests retain independent actions inside season groups."""
+import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 root=Path(__file__).resolve().parents[1]
 with sync_playwright() as p:
- b=p.chromium.launch(headless=True)
+ b=p.chromium.launch(channel=os.environ.get('WUN_BROWSER_CHANNEL','msedge'),headless=True)
  for lang in ['en','pt-BR']:
   for color in ['#151515','#ffffff']:
    page=b.new_page(viewport={'width':390,'height':844});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
