@@ -19,6 +19,15 @@
     function ownTitle(){if(savedTitle===null)savedTitle=document.title;if(document.title!==t('title'))document.title=t('title');}
     function releaseTitle(){if(savedTitle!==null&&document.title===t('title'))document.title=savedTitle;savedTitle=null;}
     let searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};
+    let searchHandoffKey=null,searchHandoffPending=false;
+    function consumeSearchHandoff(current){
+        const route=new URL(location.hash.slice(1),location.origin==='null'?'http://localhost':location.origin);
+        const query=(route.searchParams.get('query')||'').trim().slice(0,150);
+        const key=current+'|'+location.hash;
+        if(!query||searchHandoffKey===key)return false;
+        searchHandoffKey=key;searchHandoffPending=true;
+        searchState={query,kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};tab='search';start=0;return true;
+    }
     let backdropUrl='',backdropPending='',backdropTimer;
     const decisions=['pending','approved','deferred','rejected','completed','canceled'];
     const availability=['unknown','absent','partial','available'];
@@ -210,6 +219,7 @@
         row.append(coverNode(card),body);return row;
     }
     function renderSearch(content) {
+        const viewState=searchState;
         const query=el('input',{class:'emby-input',type:'search',maxlength:'150',required:'',minlength:'2',autocomplete:'off',placeholder:t('query')+' / tt0083658 / imdb:tt0083658 / tmdb:78'});
         const kind=multiselect([['All',t('both')],['Movie',t('movie')],['Series',t('series')],['Anime',/^pt\b/i.test(document.documentElement.lang)?'Animes':t('anime')]],searchState.kind);
         const yearFrom=el('input',{class:'emby-input',type:'number',min:'1800',max:'2200',step:'1'}),yearTo=yearFrom.cloneNode();
@@ -229,7 +239,7 @@
         const kindField=field(t('kind'),kind);kindField.classList.add('wun-kind');
         const form=el('form',{class:'wun-search-form'},[el('div',{class:'wun-tools wun-search-bar'},[searchField,kindField,toggle,submit]),advanced]);
         const results=el('div',{class:'wun-rows wun-search-results'});content.append(form,el('p',{class:'wun-hint'},[t('searchHint')]),results);
-        const remember=()=>{for(const [name,input]of Object.entries({query,kind,yearFrom,yearTo,genres,minRating,obtained}))searchState[name]=input.value;};
+        const remember=()=>{if(viewState!==searchState)return;for(const [name,input]of Object.entries({query,kind,yearFrom,yearTo,genres,minRating,obtained}))searchState[name]=input.value;};
         form.addEventListener('input',remember);form.addEventListener('change',remember);
         function draw(cards){results.replaceChildren();
             for(const card of cards){
@@ -261,6 +271,7 @@
             searchState.cards=cards;draw(cards);
             status(cards.length?'':t('empty'));
         });});
+        if(searchHandoffPending){searchHandoffPending=false;if(query.value.trim().length>=2)form.requestSubmit(submit);else query.focus();}
     }
     async function showDetails(card) {
         const pt=/^pt\b/i.test(document.documentElement.lang);
@@ -363,12 +374,13 @@
     async function activate() {
         if(!root?.isConnected){active=false;clearSurface();releaseTitle();return;}
         const visible=routeActive()&&!!root.getClientRects().length,current=ApiClient.getCurrentUserId();
-        if(!visible||!current){if(active){active=false;ticket++;root.querySelectorAll('dialog').forEach(x=>x.remove());}clearSurface();releaseTitle();return;}
-        if(active&&owner===current){paintSurface();ownTitle();return;}
+        if(!visible||!current){searchHandoffKey=null;searchHandoffPending=false;if(active){active=false;ticket++;root.querySelectorAll('dialog').forEach(x=>x.remove());}clearSurface();releaseTitle();return;}
+        if(active&&owner===current){if(consumeSearchHandoff(current))await render();paintSurface();ownTitle();return;}
         const changed=owner!==current;
         if(changed){clearSurface();backdropUrl='';searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};tab='mine';start=0;filter='';listFilters={admin:'',mine:''};noticeRead=false;}
+        const handoff=consumeSearchHandoff(current);
         active=true;owner=current;ownTitle();const activationTicket=++ticket;root.replaceChildren();paintSurface();initialBackdrop();
-        try{const me=await api('me');if(!live(activationTicket))return;administrator=me.administrator;pageSize=Math.max(10,Math.min(100,Number(me.pageSize)||30));if(changed){tab=administrator?'admin':'mine';sortOrder=administrator?(me.administratorOrder||'popular'):'newest';}if(tab==='admin'&&!administrator)tab='mine';await render();}
+        try{const me=await api('me');if(!live(activationTicket))return;administrator=me.administrator;pageSize=Math.max(10,Math.min(100,Number(me.pageSize)||30));if(changed){if(!handoff)tab=administrator?'admin':'mine';sortOrder=administrator?(me.administratorOrder||'popular'):'newest';}if(tab==='admin'&&!administrator)tab='mine';await render();}
         catch{if(live(activationTicket))root.textContent=t('error');}
     }
 
