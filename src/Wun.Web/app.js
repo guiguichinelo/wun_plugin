@@ -15,7 +15,7 @@
     Object.assign(words.en,{episodeHere:'episode in the catalog',openEpisode:'Open episode',shownRequests:'requests shown',availableRequests:'available',finishedRequests:'completed'});
     Object.assign(words.pt,{episodeHere:'episódio no catálogo',openEpisode:'Abrir episódio',shownRequests:'pedidos exibidos',availableRequests:'disponíveis',finishedRequests:'finalizados'});
     let root, owner, active=false, administrator=false, tab='mine', start=0, filter='', ticket=0, sortOrder='popular', pageSize=30, noticeRead=false;
-    let listFilters={admin:'',mine:''}, savedTitle=null;
+    let listFilters={admin:'0',mine:''}, savedTitle=null;
     function ownTitle(){if(savedTitle===null)savedTitle=document.title;if(document.title!==t('title'))document.title=t('title');}
     function releaseTitle(){if(savedTitle!==null&&document.title===t('title'))document.title=savedTitle;savedTitle=null;}
     let searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};
@@ -133,13 +133,16 @@
                 status(notices.length?'':t('empty'));return;
             }
             filter=listFilters[tab]??'';
-            const query=new URLSearchParams({start,limit:pageSize,sort:sortOrder});if(filter!=='')query.set('decision',filter);
-            const result=await api((tab==='admin'?'admin/':'')+'requests?'+query);if(!live(id))return;clear();
+            let toolbar=content.querySelector('.wun-list-filters');
+            if(!toolbar){
             const states=select([['',t('every')],...decisions.map((x,i)=>[String(i),t(x)])],filter);
             states.addEventListener('change',()=>{filter=listFilters[tab]=states.value;start=0;render();});
             const ordering=select([['popular',t('popular')],['newest',t('newest')],['oldest',t('oldest')]],sortOrder);
             ordering.addEventListener('change',()=>{sortOrder=ordering.value;start=0;render();});
-            content.append(el('div',{class:'wun-list-filters'},[field(t('decision'),states),field(t('sort'),ordering),button(t('refresh'),()=>render())]));
+            toolbar=el('div',{class:'wun-list-filters'},[field(t('decision'),states),field(t('sort'),ordering),button(t('refresh'),()=>render())]);content.append(toolbar);
+            }
+            const query=new URLSearchParams({start,limit:pageSize,sort:sortOrder});if(filter!=='')query.set('decision',filter);
+            const result=await api((tab==='admin'?'admin/':'')+'requests?'+query);if(!live(id))return;clear();content.append(toolbar);
             const rows=el('div',{class:'wun-rows'});appendRequestGroups(rows,result.items);content.append(rows);
             appendPager(content,result.hasMore);
             if(!result.items.length){
@@ -377,7 +380,7 @@
         if(!visible||!current){searchHandoffKey=null;searchHandoffPending=false;if(active){active=false;ticket++;root.querySelectorAll('dialog').forEach(x=>x.remove());}clearSurface();releaseTitle();return;}
         if(active&&owner===current){if(consumeSearchHandoff(current))await render();paintSurface();ownTitle();return;}
         const changed=owner!==current;
-        if(changed){clearSurface();backdropUrl='';searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};tab='mine';start=0;filter='';listFilters={admin:'',mine:''};noticeRead=false;}
+        if(changed){clearSurface();backdropUrl='';searchState={query:'',kind:'All',yearFrom:'',yearTo:'',genres:'',minRating:'',obtained:'any',cards:[]};tab='mine';start=0;filter='';listFilters={admin:'0',mine:''};noticeRead=false;}
         const handoff=consumeSearchHandoff(current);
         active=true;owner=current;ownTitle();const activationTicket=++ticket;root.replaceChildren();paintSurface();initialBackdrop();
         try{const me=await api('me');if(!live(activationTicket))return;administrator=me.administrator;pageSize=Math.max(10,Math.min(100,Number(me.pageSize)||30));if(changed){if(!handoff)tab=administrator?'admin':'mine';sortOrder=administrator?(me.administratorOrder||'popular'):'newest';}if(tab==='admin'&&!administrator)tab='mine';await render();}

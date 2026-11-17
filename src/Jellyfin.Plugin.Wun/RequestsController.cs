@@ -4,13 +4,14 @@ using MediaBrowser.Controller.Library;
 using MediaBrowser.Common.Api;
 using Jellyfin.Data.Enums;
 using Wun.Core;
+using System.Collections.Concurrent;
 namespace Jellyfin.Plugin.Wun;
 public sealed record CreateBody(string Kind,string TmdbId,int? Season=null,int? Episode=null,bool ConfirmReopen=false);
 public sealed record DecideBody(long Revision,Decision Decision,string Message="",string InternalNote="",DateTimeOffset? ReviewAt=null,bool? Monitor=null);
 [ApiController][Authorize][ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)][Route("WUN/v1")]
 public sealed class RequestsController(RequestStore store,IMetadataAccess metadata,IUserAccess users,ICatalogLookup catalog,MaintenanceRunner? maintenance=null,AvailabilitySignal? availabilitySignal=null):ControllerBase
 {
- readonly Dictionary<(long Id,bool Administrative),Task<RequestView?>> presentations=new();
+ readonly ConcurrentDictionary<(long Id,bool Administrative),Lazy<Task<RequestView?>>> presentations=new();
  Guid Owner=>Guid.TryParse(User.FindFirst("Jellyfin-UserId")?.Value,out var id)&&id!=Guid.Empty?id:throw new UnauthorizedAccessException();
  [HttpGet("me")]public object Me()=>new{Administrator=users.Administrator(Owner),PageSize=Plugin.Instance?.Configuration.PageSize??30,AdministratorOrder=Plugin.Instance?.Configuration.AdministratorOrder??"popular"};
  [Authorize(Policy=Policies.RequiresElevation)][HttpGet("admin/metrics")]public IActionResult Metrics()=>Ok(store.Metrics());
@@ -21,7 +22,9 @@ public sealed class RequestsController(RequestStore store,IMetadataAccess metada
  {
   if(start<0||limit<1||limit>100||(decision.HasValue&&!Enum.IsDefined(decision.Value))||sort is not("newest" or "oldest" or "popular"))return BadRequest();
   Response.Headers.CacheControl="private, no-store";var page=store.List(start,limit,decision:decision,participant:mine?Owner:null,sort:sort);var visible=new List<object>();
-  foreach(var card in page.Items){var projection=await Present(card,administrative,ct);if(projection!=null)visible.Add(projection);}
+  using var gate=new SemaphoreSlim(4);
+  var projections=await Task.WhenAll(page.Items.Select(async card=>{await gate.WaitAsync(ct);try{ct.ThrowIfCancellationRequested();return await Present(card,administrative,ct);}finally{gate.Release();}}));
+  visible.AddRange(projections.Where(p=>p!=null).Select(p=>(object)p!));
   return Ok(new{Items=visible,HasMore=start+limit<page.Total,Start=start,Limit=limit});
  }
  [HttpPost("requests")]public async Task<IActionResult> Create(CreateBody body,CancellationToken ct){if(!Enum.TryParse<MediaKind>(body.Kind,out var kind)||!Enum.IsDefined(kind))return BadRequest();var selection=new Selection(kind,body.TmdbId,"pending",body.Season,body.Episode);try{selection.Validate();}catch(ArgumentException){return BadRequest();}var item=await metadata.Resolve(Owner,body.Kind,body.TmdbId,ct);if(item==null)return NotFound();if(body.Kind=="Movie"||body.Episode.HasValue){var presence=catalog.Find(Owner,body.Kind,item.ProviderIds,body.Season,body.Episode);if(presence.Obtained)return Conflict(new{Error="already_obtained",Catalog=presence});}selection=selection with{Title=item.Name};var existing=store.FindSelection(selection);var settings=Plugin.Instance?.Configuration??new Configuration();
@@ -35,8 +38,7 @@ var existed=store.FindSelection(selection)!=null;var card=store.Create(Owner,sel
  Task<RequestView?> Present(RequestCard card,bool administrative,CancellationToken ct)
  {
   var key=(card.Id,administrative);
-  if(!presentations.TryGetValue(key,out var task))presentations[key]=task=PresentCurrent(card,administrative,ct);
-  return task;
+  return presentations.GetOrAdd(key,_=>new Lazy<Task<RequestView?>>(()=>PresentCurrent(card,administrative,ct),LazyThreadSafetyMode.ExecutionAndPublication)).Value;
  }
  async Task<RequestView?> PresentCurrent(RequestCard card,bool administrative,CancellationToken ct)
  {

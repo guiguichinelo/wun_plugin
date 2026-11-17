@@ -25,7 +25,7 @@ with sync_playwright() as p:
   }}; }''')
  page.add_script_tag(path=str(root/'src/Wun.Web/app.js'));page.evaluate('WunUI.mount(document.querySelector("#wun-app"))')
  page.wait_for_function('document.title==="Requests"');page.locator('.wun-request-card').wait_for()
- assert page.get_by_label('Decision',exact=True).input_value()==''
+ assert page.get_by_label('Decision',exact=True).input_value()=='0'
  page.get_by_label('Decision',exact=True).select_option('0')
  page.get_by_role('button',name='Approve',exact=True).click();page.locator('dialog').get_by_role('button',name='Approve',exact=True).click()
  page.wait_for_function('window.state===1&&document.querySelectorAll(".wun-request-card").length===0')
@@ -42,7 +42,8 @@ with sync_playwright() as p:
  assert page.locator('.wun-request-card').count()==1
  assert page.evaluate('window.originalFilter===document.querySelector(".wun-list-filters select")')
  page.evaluate('releaseRefresh()')
- page.wait_for_function('window.originalFilter!==document.querySelector(".wun-list-filters select")')
+ page.wait_for_function('!document.querySelector(".wun-content").hasAttribute("aria-busy")')
+ assert page.evaluate('window.originalFilter===document.querySelector(".wun-list-filters select")')
  page.evaluate('()=>{ApiClient.ajax=window.originalAjax;}')
  page.get_by_role('button',name='Refresh',exact=True).click();page.locator('.wun-request-card').wait_for()
  assert page.get_by_label('Decision',exact=True).input_value()=='1'
@@ -65,4 +66,4 @@ with sync_playwright() as p:
  assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
  assert not errors,errors
  browser.close()
-print('PASS: title lifecycle, all-status default and explicit pending filter, decision actions, refresh filters, read groups, full-row type click and search continuity')
+print('PASS: title lifecycle, pending default and preserved filters, decision actions, refresh filters, read groups, full-row type click and search continuity')

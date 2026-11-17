@@ -1,7 +1,7 @@
 name: build-and-test
 on:
   push:
-    branches: [main, release/0.1.0-beta.8]
+    branches: [main, release/0.1.0-beta.8, release/0.1.0-beta.9]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -26,6 +26,7 @@ jobs:
       - run: python tests/page_smoke.py
       - run: python tests/workflow_smoke.py
       - run: python tests/interaction_smoke.py
+      - run: python tests/loading_smoke.py
       - run: python tests/episode_groups_smoke.py
       - run: python tests/config_smoke.py
       - run: python tests/header_smoke.py
